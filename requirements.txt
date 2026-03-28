@@ -1,0 +1,19 @@
+# AI / Agent
+langchain
+langchain-openai
+langchain-core
+langgraph
+
+# Telegram
+python-telegram-bot
+
+# Google APIs
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+
+# Utilities
+python-dotenv
+beautifulsoup4
+openai
