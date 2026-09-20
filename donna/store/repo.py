@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import timedelta
 from typing import Any, Iterable, Sequence
 
 from donna.store.db import get_db, upsert
@@ -122,15 +123,18 @@ def set_email_category(
     model: str,
     trace_id: str,
     label_applied: bool = False,
+    signal: str | None = None,
 ) -> None:
+    """Store the triage verdict, keeping the raw signal beside the derived category."""
     if category not in CATEGORIES:
         raise ValueError(f"Categoria sconosciuta: {category!r}; attese {CATEGORIES}")
     get_db().execute(
-        "UPDATE emails SET category = ?, category_confidence = ?, category_reason = ?,"
-        " classified_at = ?, classifier_model = ?, classify_trace_id = ?, label_applied = ?"
-        " WHERE id = ?",
+        "UPDATE emails SET category = ?, category_signal = ?, category_confidence = ?,"
+        " category_reason = ?, classified_at = ?, classifier_model = ?, classify_trace_id = ?,"
+        " label_applied = ? WHERE id = ?",
         (
             category,
+            signal,
             confidence,
             reason,
             iso_utc(now_utc()),
@@ -140,6 +144,16 @@ def set_email_category(
             email_id,
         ),
     )
+
+
+def signal_counts() -> dict[str, int]:
+    return {
+        r["category_signal"]: r["n"]
+        for r in get_db().query(
+            "SELECT category_signal, count(*) n FROM emails"
+            " WHERE category_signal IS NOT NULL GROUP BY category_signal ORDER BY n DESC"
+        )
+    }
 
 
 def mark_email_extracted(email_id: str, trace_id: str | None) -> None:
@@ -304,6 +318,165 @@ def find_task(needle: str) -> sqlite3.Row | None:
         " ORDER BY due_ts IS NULL, due_ts LIMIT 1",
         (f"%{needle.lower()}%",),
     )
+
+
+# ================================================================== proposals
+# The approval gate. Donna never writes an inferred action to Google; she writes a row here
+# and asks. Being real rows rather than in-memory state means proposals survive a restart
+# and can be reviewed from Telegram, the web UI or the CLI interchangeably.
+PROPOSAL_STATES = ("pending", "accepted", "rejected", "edited", "expired")
+
+
+def create_proposal(
+    *,
+    kind: str,
+    source_type: str,
+    source_id: str | None,
+    payload: dict[str, Any],
+    reasoning: str | None = None,
+    evidence_quote: str | None = None,
+    confidence: float | None = None,
+    trace_id: str | None = None,
+    dedupe_key: str | None = None,
+) -> int | None:
+    """Insert a proposal. Returns None if an identical one already exists.
+
+    The dedupe key is enforced by a unique index, so a duplicate is rejected by the
+    database rather than by a racy pre-check. Deliberately this also suppresses re-proposing
+    something the user already rejected: being asked twice about the same email is worse
+    than missing it.
+    """
+    try:
+        cursor = get_db().execute(
+            "INSERT INTO proposals (kind, source_type, source_id, payload_json, reasoning,"
+            " evidence_quote, confidence, state, created_at, trace_id, dedupe_key)"
+            " VALUES (?,?,?,?,?,?,?,'pending',?,?,?)",
+            (
+                kind,
+                source_type,
+                source_id,
+                json.dumps(payload, ensure_ascii=False),
+                reasoning,
+                evidence_quote,
+                confidence,
+                iso_utc(now_utc()),
+                trace_id,
+                dedupe_key,
+            ),
+        )
+    except sqlite3.IntegrityError:
+        return None
+    return cursor.lastrowid
+
+
+def get_proposal(proposal_id: int) -> sqlite3.Row | None:
+    return get_db().query_one("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+
+
+def pending_proposals(limit: int = 20) -> list[sqlite3.Row]:
+    return get_db().query(
+        "SELECT * FROM proposals WHERE state = 'pending' ORDER BY created_at DESC LIMIT ?",
+        (limit,),
+    )
+
+
+def unnotified_proposals(limit: int = 10) -> list[sqlite3.Row]:
+    return get_db().query(
+        "SELECT * FROM proposals WHERE state = 'pending' AND notified_at IS NULL"
+        " ORDER BY created_at LIMIT ?",
+        (limit,),
+    )
+
+
+def mark_proposal_notified(proposal_id: int) -> None:
+    get_db().execute(
+        "UPDATE proposals SET notified_at = ? WHERE id = ?", (iso_utc(now_utc()), proposal_id)
+    )
+
+
+def resolve_proposal(
+    proposal_id: int,
+    *,
+    state: str,
+    via: str,
+    result_ref: str | None = None,
+) -> bool:
+    """Move a proposal out of pending. Only a pending proposal can be resolved.
+
+    The state guard is what makes a double tap on a Telegram button harmless: the second
+    one matches no rows and changes nothing, rather than creating a second calendar event.
+    """
+    if state not in PROPOSAL_STATES:
+        raise ValueError(f"Stato proposta non valido: {state!r}")
+    cursor = get_db().execute(
+        "UPDATE proposals SET state = ?, resolved_at = ?, resolved_via = ?, result_ref = ?"
+        " WHERE id = ? AND state = 'pending'",
+        (state, iso_utc(now_utc()), via, result_ref, proposal_id),
+    )
+    return cursor.rowcount > 0
+
+
+def update_proposal_payload(proposal_id: int, payload: dict[str, Any]) -> None:
+    get_db().execute(
+        "UPDATE proposals SET payload_json = ? WHERE id = ?",
+        (json.dumps(payload, ensure_ascii=False), proposal_id),
+    )
+
+
+def expire_old_proposals(days: int) -> int:
+    """Age out proposals nobody answered, so the pending list stays meaningful."""
+    cutoff = iso_utc(now_utc() - timedelta(days=days))
+    cursor = get_db().execute(
+        "UPDATE proposals SET state = 'expired', resolved_at = ?, resolved_via = 'expiry'"
+        " WHERE state = 'pending' AND created_at < ?",
+        (iso_utc(now_utc()), cutoff),
+    )
+    return cursor.rowcount
+
+
+def proposal_payload(row: sqlite3.Row) -> dict[str, Any]:
+    try:
+        return json.loads(row["payload_json"])
+    except (ValueError, TypeError):
+        return {}
+
+
+# ================================================================== feedback
+def record_feedback(
+    *,
+    kind: str,
+    trace_id: str | None = None,
+    proposal_id: int | None = None,
+    email_id: str | None = None,
+    original_output: str | None = None,
+    corrected_output: str | None = None,
+    note: str | None = None,
+) -> int:
+    """Every correction the user makes. This accumulates the fine-tuning dataset from day
+    one, which is the whole reason the SLM plan can start with prompts and keep LoRA open.
+    """
+    cursor = get_db().execute(
+        "INSERT INTO feedback (kind, trace_id, proposal_id, email_id, original_output,"
+        " corrected_output, note, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (
+            kind,
+            trace_id,
+            proposal_id,
+            email_id,
+            original_output,
+            corrected_output,
+            note,
+            iso_utc(now_utc()),
+        ),
+    )
+    return cursor.lastrowid
+
+
+def feedback_counts() -> dict[str, int]:
+    return {
+        r["kind"]: r["n"]
+        for r in get_db().query("SELECT kind, count(*) n FROM feedback GROUP BY kind")
+    }
 
 
 # ================================================================== sync bookkeeping

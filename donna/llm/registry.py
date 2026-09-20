@@ -67,24 +67,35 @@ class ModelSpec:
         return opts
 
 
-# --- Tiers -------------------------------------------------------------------
-# Two tiers, not three. The original design had a 0.8b "reflex" tier for routing, on the
-# reasoning that a smaller model routes faster. Measured, it does not:
+# --- One model, not a tier list ----------------------------------------------
+# This started as three tiers (0.8b router, 2b workers, 9b brain) and measurement collapsed
+# it to one. The evidence, all on this machine (RTX 3060 Ti 8 GB, 16 GB system RAM):
 #
-#   route on qwen3.5:0.8b   3134-3509 ms   (gen ~1.05 s + load ~2.2 s, every single call)
-#   route on qwen3.5:2b     1383-1547 ms   (gen ~1.38 s + load ~2 ms)
+# 1. The 0.8b router lost to the 2b, 3134-3509 ms against 1383-1547 ms, because it was the
+#    least-recently-used runner and reloaded (~2.2 s) on essentially every call.
 #
-# The 0.8b generates slightly faster and still loses by 2.4x, because a third model does
-# not stay resident here: with 16 GB of system RAM and Ollama's default
-# OLLAMA_MAX_LOADED_MODELS=3 (the embedding model takes the third slot), the
-# least-recently-used CPU runner gets evicted, and the router is always the longest-idle
-# one — it runs first in a request, then the worker and the brain run after it.
+# 2. Then the decisive one. Ollama silently moves a model to the CPU when it decides it no
+#    longer fits, and reports it only in `ollama ps`:
 #
-# So the lesson is the opposite of the intuition: on a memory-constrained box the fastest
-# model for a job is usually the one already loaded. Routing rides the worker runner.
-# qwen3.5:0.8b is still a valid experiment via DONNA_MODEL_ROUTE if this ever changes.
-_WORKER_MODEL = "qwen3.5:2b"    # routing, classification, extraction — CPU, always hot
-_BRAIN_MODEL = "qwen3.5:9b"     # conversation and planning — GPU-resident, ~59 tok/s
+#       9b alone resident            -> 100% GPU, 5.6 GB, 57.8 tok/s
+#       9b with the 2b also resident -> 100% CPU,          ~10 tok/s
+#
+#    Holding a second model resident cost a 6x slowdown on the model that matters. Every
+#    early triage measurement (10-16 s per email) was the 9b running on the CPU without
+#    saying so. The "worker on CPU to avoid VRAM contention" idea backfired: the contention
+#    was not for VRAM, it was for Ollama's willingness to keep the big model on the GPU.
+#
+# So: one model serves every generative task. It is always resident, always on the GPU,
+# never swapped, and it is also the most accurate of the three (12/12 on a hand-labelled
+# triage set where the 2b managed 0/12 on the same prompt).
+#
+# The SLM architecture is unaffected, because specialisation here was never about separate
+# weights: each task still has its own prompt, its own output schema and its own sampling.
+# That is where a per-task LoRA adapter would attach later, over this same base.
+_BRAIN_MODEL = "qwen3.5:9b"
+# Kept as a name so a task can be pointed at something cheaper via DONNA_MODEL_<TASK>, but
+# nothing uses it by default — see above for why a second resident model is not free.
+_WORKER_MODEL = "qwen3.5:2b"
 _EMBED_MODEL = "mxbai-embed-large"
 
 # Context size is a property of the MODEL, not of the task, and this is not a
@@ -101,19 +112,25 @@ _MODEL_CTX: dict[str, int] = {
     _EMBED_MODEL: 512,
 }
 
+# Specialisation is per task: prompt, schema, sampling and output budget. The model is the
+# same, and that is a deliberate consequence of the note above, not an oversight.
 _SPECS: dict[str, ModelSpec] = {
-    ROUTE: ModelSpec(ROUTE, _WORKER_MODEL, "cpu", num_predict=64),
-    CLASSIFY_EMAIL: ModelSpec(CLASSIFY_EMAIL, _WORKER_MODEL, "cpu", num_predict=200),
-    EXTRACT_COMMITMENT: ModelSpec(EXTRACT_COMMITMENT, _WORKER_MODEL, "cpu", num_predict=400),
-    # Escalation path for low-confidence extractions. Same prompt, bigger model.
+    ROUTE: ModelSpec(ROUTE, _BRAIN_MODEL, "gpu", num_predict=64),
+    CLASSIFY_EMAIL: ModelSpec(CLASSIFY_EMAIL, _BRAIN_MODEL, "gpu", num_predict=400),
+    EXTRACT_COMMITMENT: ModelSpec(EXTRACT_COMMITMENT, _BRAIN_MODEL, "gpu", num_predict=400),
+    # Retained as a distinct task so an escalation path stays available (and so the eval
+    # harness can score a second configuration), but it is the same base model today.
     EXTRACT_COMMITMENT_BIG: ModelSpec(
         EXTRACT_COMMITMENT_BIG, _BRAIN_MODEL, "gpu", num_predict=400
     ),
-    SUMMARIZE: ModelSpec(SUMMARIZE, _WORKER_MODEL, "cpu", temperature=0.2),
-    EXTRACT_FACTS: ModelSpec(EXTRACT_FACTS, _WORKER_MODEL, "cpu", num_predict=400),
+    SUMMARIZE: ModelSpec(SUMMARIZE, _BRAIN_MODEL, "gpu", temperature=0.2),
+    EXTRACT_FACTS: ModelSpec(EXTRACT_FACTS, _BRAIN_MODEL, "gpu", num_predict=400),
     CHAT: ModelSpec(CHAT, _BRAIN_MODEL, "gpu", temperature=0.45),
     SCHEDULE: ModelSpec(SCHEDULE, _BRAIN_MODEL, "gpu", temperature=0.2),
     PLAN: ModelSpec(PLAN, _BRAIN_MODEL, "gpu", temperature=0.1),
+    # The one genuine exception: embeddings need a different architecture, not a different
+    # size. Pinned to the CPU so it cannot be the second model that pushes the 9b off the
+    # GPU — it is 669 MB and a batch of three vectors costs under a second there.
     EMBED: ModelSpec(EMBED, _EMBED_MODEL, "cpu"),
 }
 

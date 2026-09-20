@@ -42,17 +42,43 @@ def test_model_count_fits_ollama_load_limit():
     assert len(registry.required_models()) <= 3
 
 
-def test_cpu_tasks_pin_num_gpu_to_zero():
-    # Without this the workers land on the GPU and evict the 9b.
-    spec = registry.get_spec(registry.CLASSIFY_EMAIL)
+def test_only_one_generative_model_is_configured():
+    """The invariant that keeps the 9b on the GPU.
+
+    Measured: with a second model resident, Ollama silently relocated the 9b to the CPU and
+    it went from 57.8 tok/s to ~10, and triage from 1.3 s to 8 s per email. Adding a second
+    generative model back is therefore a performance regression, not an optimisation.
+    """
+    generative = {
+        registry.get_spec(task).model
+        for task in registry.all_tasks()
+        if task != registry.EMBED
+    }
+    assert len(generative) == 1, f"più di un modello generativo: {sorted(generative)}"
+
+
+def test_embeddings_stay_on_the_cpu():
+    # The embedding model is the only other one loaded, so it must not compete for VRAM.
+    spec = registry.get_spec(registry.EMBED)
     assert spec.device == "cpu"
     assert spec.options()["num_gpu"] == 0
 
 
-def test_gpu_tasks_leave_offload_to_ollama():
-    spec = registry.get_spec(registry.CHAT)
-    assert spec.device == "gpu"
-    assert "num_gpu" not in spec.options()
+def test_generative_tasks_leave_offload_to_ollama():
+    for task in (registry.CHAT, registry.CLASSIFY_EMAIL, registry.ROUTE):
+        spec = registry.get_spec(task)
+        assert spec.device == "gpu"
+        assert "num_gpu" not in spec.options()
+
+
+def test_tasks_are_still_specialised_even_sharing_a_model():
+    # Sharing weights must not mean sharing configuration: the sampling is what makes a
+    # classifier deterministic and a conversation not.
+    assert registry.get_spec(registry.CLASSIFY_EMAIL).temperature == 0.0
+    assert registry.get_spec(registry.CHAT).temperature > 0.0
+    assert registry.get_spec(registry.ROUTE).num_predict < registry.get_spec(
+        registry.EXTRACT_COMMITMENT
+    ).num_predict
 
 
 def test_workers_do_not_burn_time_on_reasoning_streams():
@@ -79,8 +105,8 @@ def test_override_that_splits_a_model_across_context_sizes_is_rejected(
 ):
     # Point one worker task at the brain model. The brain runs at 8192 and the default for
     # an unrecognised tag is 4096 — but here the tag IS recognised, so it must agree.
-    monkeypatch.setenv("DONNA_MODEL_CLASSIFY_EMAIL", "qwen3.5:9b")
-    registry.assert_consistent()  # same ctx, so this is fine
+    monkeypatch.setenv("DONNA_MODEL_CLASSIFY_EMAIL", "qwen3.5:2b")
+    registry.assert_consistent()  # a different model at its own ctx is fine
 
     monkeypatch.setenv("OLLAMA_MAX_LOADED_MODELS", "1")
     with pytest.raises(ValueError, match="OLLAMA_MAX_LOADED_MODELS"):

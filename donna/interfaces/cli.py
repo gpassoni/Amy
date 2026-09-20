@@ -11,6 +11,7 @@ import math
 import os
 import shutil
 import subprocess
+import time
 import sys
 from typing import Any, Literal
 
@@ -472,6 +473,96 @@ def cmd_status(_: argparse.Namespace) -> int:
     return 0
 
 
+_CATEGORY_MARK = {"importante": "🔴", "da_leggere": "🟡", "inutile": "⚪"}
+
+
+def cmd_triage(args: argparse.Namespace) -> int:
+    from donna.pipeline import prompts, triage
+    from donna.store import repo
+    from donna.timeutil import format_it, parse_iso
+
+    get_db().migrate()
+    settings = get_settings()
+    pending = repo.untriaged_emails(args.limit or settings.triage_batch_size)
+    if not pending:
+        print(f"{OK} niente da classificare")
+        return 0
+
+    mode = " (dry-run, nessuna scrittura)" if args.dry_run else ""
+    print(f"\n{BOLD}Triage{RESET} — {len(pending)} email{mode}\n")
+
+    failures = 0
+    counts: dict[str, int] = {}
+    started_all = time.perf_counter()
+
+    for row in pending:
+        started = time.perf_counter()
+        try:
+            verdict, model, trace_id = triage.classify_one(
+                sender_name=row["from_name"] or "",
+                sender_addr=row["from_addr"] or "",
+                subject=row["subject"] or "",
+                body=row["body"] or "",
+            )
+        except LLMError as exc:
+            failures += 1
+            print(f"  {BAD} {(row['subject'] or '')[:46]:<48} {exc}")
+            continue
+
+        elapsed = int((time.perf_counter() - started) * 1000)
+        counts[verdict.category] = counts.get(verdict.category, 0) + 1
+        mark = _CATEGORY_MARK.get(verdict.category, "?")
+        received = parse_iso(row["received_at"])
+        print(
+            f"  {mark} {verdict.category:<11} {verdict.confidence:.2f} "
+            f"{verdict.signal:<23} {(row['subject'] or '')[:40]:<42} {DIM}{elapsed:>5}ms{RESET}"
+        )
+        if args.verbose:
+            when = format_it(received, with_time=False) if received else "?"
+            print(
+                f"       {DIM}da {(row['from_addr'] or '')[:38]} · {when} · {verdict.reason}{RESET}"
+            )
+
+        if not args.dry_run:
+            labelled = False
+            repo.set_email_category(
+                row["id"],
+                category=verdict.category,
+                confidence=verdict.confidence,
+                reason=verdict.reason,
+                model=model,
+                trace_id=trace_id,
+                label_applied=False,
+                signal=verdict.signal,
+            )
+            if not args.no_labels:
+                from donna.google import gmail
+
+                labelled = gmail.apply_category_label(row["id"], verdict.category)
+                if labelled:
+                    repo.set_email_category(
+                        row["id"],
+                        category=verdict.category,
+                        confidence=verdict.confidence,
+                        reason=verdict.reason,
+                        model=model,
+                        trace_id=trace_id,
+                        label_applied=True,
+                        signal=verdict.signal,
+                    )
+
+    total = int((time.perf_counter() - started_all) * 1000)
+    spread = "  ".join(f"{_CATEGORY_MARK[k]} {k} {v}" for k, v in sorted(counts.items()))
+    print(f"\n  {spread}")
+    per = total / max(1, sum(counts.values()))
+    print(f"  {sum(counts.values())} classificate in {total / 1000:.1f}s ({per:.0f}ms per email)")
+    if failures:
+        print(f"  {BAD} {failures} fallite")
+    if args.dry_run:
+        print(f"  {DIM}dry-run: niente scritto su database o Gmail{RESET}")
+    return 1 if failures else 0
+
+
 def cmd_traces(args: argparse.Namespace) -> int:
     rows = get_db().query(
         "SELECT created_at, task, model, device, tokens_in, tokens_out, latency_ms, ok"
@@ -519,6 +610,17 @@ def build_parser() -> argparse.ArgumentParser:
     sync.set_defaults(func=cmd_sync)
 
     sub.add_parser("status", help="cosa sa Donna in questo momento").set_defaults(func=cmd_status)
+
+    triage = sub.add_parser("triage", help="classifica le email non ancora classificate")
+    triage.add_argument("-n", "--limit", type=int, default=None)
+    triage.add_argument("-v", "--verbose", action="store_true", help="mostra la motivazione")
+    triage.add_argument(
+        "--dry-run", action="store_true", help="chiama il modello ma non scrive nulla"
+    )
+    triage.add_argument(
+        "--no-labels", action="store_true", help="non applicare le label su Gmail"
+    )
+    triage.set_defaults(func=cmd_triage)
 
     traces = sub.add_parser("traces", help="ultime chiamate LLM registrate")
     traces.add_argument("-n", "--limit", type=int, default=20)
