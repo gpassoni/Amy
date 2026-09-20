@@ -6,6 +6,14 @@ token.json
 # Logs
 *.log
 
+# Local world model — mirrors your mailbox and calendar. Never commit it.
+donna.db
+donna.db-wal
+donna.db-shm
+
+# Exported fine-tuning datasets
+datasets/
+
 # Python artifacts
 __pycache__/
 *.py[cod]
