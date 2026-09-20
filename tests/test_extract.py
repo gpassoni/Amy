@@ -111,13 +111,20 @@ def test_plausibility_is_judged_against_the_email_but_actionability_against_now(
     assert result.when is not None
 
 
-def test_a_commitment_later_today_is_still_proposed(db: Database):
-    soon = now_utc() + timedelta(hours=3)
+def test_a_commitment_still_ahead_is_not_skipped_as_past(db: Database):
+    """The past-date guard must only reject what has actually gone.
+
+    This used to phrase the appointment as "oggi alle {now+3h}", which quietly depended on the
+    hour the suite ran: after 21:00 that wraps to 00:00, which is today's midnight and
+    therefore in the past, so the test failed every evening. A relative day is the same
+    assertion without the dependency on the wall clock.
+    """
     result = run_extract(
-        make_commitment(date_phrase=f"oggi alle {soon.astimezone().hour}:00"),
+        make_commitment(date_phrase="domani alle 10:00"),
         received_at=iso_utc(now_utc() - timedelta(minutes=30)),
     )
     assert result.skip_reason != extract.SKIP_PAST
+    assert result.proposable
 
 
 # ---------------------------------------------------------------- confidence

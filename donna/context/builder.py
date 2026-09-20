@@ -109,12 +109,15 @@ def _event_line(row, *, with_day: bool = False) -> str:
         stamp = format_it(start, with_time=False) if with_day else "tutto il giorno"
         return f"- {stamp}: {row['summary']}"
     local = to_local(start)
+    # The end time is not optional. The week view used to print only the start, so an event
+    # listed as "martedì 22 alle 08:00: Lavoro" told the model nothing about when work ends —
+    # and asked to schedule something "after work", it invented 18:00 for a day that ends at
+    # 16:30. Anything that reasons about "after X" needs to see where X stops.
+    tail = f"–{to_local(end):%H:%M}" if end is not None else ""
     if with_day:
-        head = f"{weekday_name_it(start)} {local.day} alle {local:%H:%M}"
+        head = f"{weekday_name_it(start)} {local.day} {local:%H:%M}{tail}"
     else:
-        head = f"{local:%H:%M}"
-        if end is not None:
-            head += f"–{to_local(end):%H:%M}"
+        head = f"{local:%H:%M}{tail}"
     line = f"- {head}: {row['summary']}"
     if row["location"]:
         line += f" ({row['location'][:40]})"
@@ -170,14 +173,24 @@ def build(*, query: str | None = None, include_facts: bool = True) -> WorldState
     now = now_local()
     settings = get_settings()
     masculine = settings.user_grammatical_gender.lower().startswith("m")
+
+    # Spelled out rather than left as arithmetic. Asked to schedule something "domani", the
+    # model resolved it to a date a week away — it had "domenica 20 settembre" and had to
+    # derive tomorrow from it, and did not. Dates are cheap to state and expensive to guess.
+    anchors = " · ".join(
+        f"{label} è {format_it(now + timedelta(days=offset), with_time=False)} "
+        f"({(now + timedelta(days=offset)):%d/%m/%Y})"
+        for label, offset in (("oggi", 0), ("domani", 1), ("dopodomani", 2))
+    )
+
     state = WorldState(
-        now_line=f"{format_it(now)} ({now:%d/%m/%Y})",
+        now_line=f"{format_it(now)} ({now:%d/%m/%Y})\n{anchors}",
         about_user=(
             f"{settings.user_name}. "
             + (
-                'Rivolgiti a lui al MASCHILE: "sei libero", "sei pronto", "ti ho messo".'
+                'Rivolgiti a lui al MASCHILE: "sei libero", "sei pronto", "te l\'ho preparata".'
                 if masculine
-                else 'Rivolgiti a lei al FEMMINILE: "sei libera", "sei pronta", "ti ho messo".'
+                else 'Rivolgiti a lei al FEMMINILE: "sei libera", "sei pronta", "te l\'ho preparata".'
             )
         ),
     )
@@ -189,8 +202,35 @@ def build(*, query: str | None = None, include_facts: bool = True) -> WorldState
     state.today = [_event_line(r) for r in today_events[:MAX_TODAY]]
     state.gaps = _free_gaps(today_events, today)
 
+    # Grouped by day, and days with nothing on them are listed as empty rather than omitted.
+    #
+    # A plain list of events makes absence invisible: asked to schedule something "tomorrow
+    # after work" on a day that had no work, the model did not notice the day was missing from
+    # the list — it borrowed 16:30 from the other days and asserted that work ended then.
+    # An explicit "niente in programma" is a fact it can read; a gap is an inference it has to
+    # make, and it did not make it.
     week_events = repo.events_between(today_end, week_end)
-    state.week = [_event_line(r, with_day=True) for r in week_events[:MAX_WEEK]]
+    by_day: dict[date, list] = {}
+    for row in week_events:
+        start = parse_iso(row["start_ts"])
+        if start is not None:
+            by_day.setdefault(to_local(start).date(), []).append(row)
+
+    shown = 0
+    for offset in range(1, 8):
+        day = today + timedelta(days=offset)
+        rows = by_day.get(day, [])
+        if not rows:
+            state.week.append(
+                f"- {weekday_name_it(now + timedelta(days=offset))} {day.day}: niente in programma"
+            )
+            continue
+        for row in rows:
+            if shown >= MAX_WEEK:
+                break
+            state.week.append(_event_line(row, with_day=True))
+            shown += 1
+
     if len(week_events) > MAX_WEEK:
         state.week.append(
             f"- (e altri {len(week_events) - MAX_WEEK}: usa elenca_eventi per la lista completa)"

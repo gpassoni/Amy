@@ -136,29 +136,63 @@ def trova_slot_liberi(durata_minuti: int = 60, entro_giorni: int = 7) -> str:
 
 
 # ================================================================== calendar (write)
-def crea_evento(
-    titolo: str, inizio: str, fine: str | None = None, luogo: str | None = None
+def proponi_evento(
+    titolo: str,
+    inizio: str,
+    fine: str | None = None,
+    luogo: str | None = None,
+    promemoria_minuti: int | None = None,
 ) -> str:
-    """Create an event. Only reachable from an explicit user instruction."""
+    """Propose an event rather than creating one.
+
+    Originally this wrote straight to the calendar, on the reasoning that an explicit
+    instruction is not a guess and does not need approving. That was wrong in practice, for
+    two reasons the user found immediately:
+
+      * Asked to schedule a motorbike wash after work, Donna replied "ti ho inserito" and
+        had called no tool at all. Nothing existed, and the claim was indistinguishable from
+        a real one. A proposal cannot be faked the same way: it is a row, and the interfaces
+        render rows, not prose.
+      * Even a correct write is worth seeing before it lands, because the model gets the
+        *details* wrong — the time, the duration, what "after work" means — far more often
+        than it gets the intent wrong.
+
+    So everything goes through the same gate now, whether Donna inferred it or was told.
+    """
     start = parse_iso(inizio)
     if start is None:
         return f"Non ho capito la data di inizio: {inizio!r}. Serve il formato YYYY-MM-DDTHH:MM."
     finish = parse_iso(fine) if fine else start + timedelta(hours=1)
 
-    created = gcal.create_event(titolo, iso_utc(start), iso_utc(finish), location=luogo)
-    event_id = created.get("id")
-    if event_id:
-        repo.record_donna_event(
-            event_id=event_id,
-            proposal_id=None,
-            summary=titolo,
-            start_ts=iso_utc(start),
-            end_ts=iso_utc(finish),
-            all_day=False,
-            location=luogo,
-            html_link=created.get("htmlLink"),
-        )
-    return f"Creato: {titolo} — {format_range_it(start, finish)}"
+    payload: dict[str, Any] = {
+        "kind": "appuntamento",
+        "title": titolo,
+        "start_ts": iso_utc(start),
+        "end_ts": iso_utc(finish),
+        "all_day": False,
+        "location": luogo,
+    }
+    if promemoria_minuti:
+        payload["reminder_minutes"] = int(promemoria_minuti)
+
+    proposal_id = repo.create_proposal(
+        kind="calendar_event",
+        source_type="conversation",
+        source_id=None,
+        payload=payload,
+        reasoning="Me l'hai chiesto tu in chat.",
+        confidence=1.0,
+    )
+    if proposal_id is None:
+        return "Ne avevo già preparata una identica."
+
+    reminder = (
+        f", con promemoria {promemoria_minuti} minuti prima" if promemoria_minuti else ""
+    )
+    return (
+        f"PROPOSTA #{proposal_id}: {titolo} — {format_range_it(start, finish)}{reminder}. "
+        "Non è ancora in calendario: serve la conferma."
+    )
 
 
 def sposta_evento(id_evento: str, nuovo_inizio: str, nuova_fine: str | None = None) -> str:
@@ -319,19 +353,24 @@ TOOLS: dict[str, Tool] = {
             trova_slot_liberi,
         ),
         Tool(
-            "crea_evento",
-            "Crea un evento in calendario. Usalo SOLO quando te lo chiede esplicitamente. "
-            "Le date vanno in formato YYYY-MM-DDTHH:MM.",
+            "proponi_evento",
+            "Prepara un impegno da mettere in calendario. NON lo mette: crea una proposta che "
+            "lui conferma con un tocco. Devi chiamare questo strumento: se scrivi soltanto che "
+            "l'hai fatto, non è stato fatto niente. Date in formato YYYY-MM-DDTHH:MM.",
             _obj(
                 {
                     "titolo": {"type": "string"},
                     "inizio": {"type": "string", "description": "YYYY-MM-DDTHH:MM"},
                     "fine": {"type": "string", "description": "YYYY-MM-DDTHH:MM, opzionale"},
                     "luogo": {"type": "string"},
+                    "promemoria_minuti": {
+                        "type": "integer",
+                        "description": "minuti di anticipo per l'avviso, se ne chiede uno",
+                    },
                 },
                 ["titolo", "inizio"],
             ),
-            crea_evento,
+            proponi_evento,
             mutating=True,
         ),
         Tool(

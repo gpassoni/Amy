@@ -146,6 +146,7 @@ def create_event(
     *,
     description: str | None = None,
     location: str | None = None,
+    reminder_minutes: int | None = None,
 ) -> dict[str, Any]:
     settings = get_settings()
     body: dict[str, Any] = {
@@ -157,6 +158,16 @@ def create_event(
         body["description"] = description
     if location:
         body["location"] = location
+    if reminder_minutes is not None:
+        # useDefault must be turned off, or Google ignores the overrides and applies the
+        # calendar's own defaults instead — the reminder would silently not be the one asked
+        # for. Google caps the lead time at four weeks.
+        body["reminders"] = {
+            "useDefault": False,
+            "overrides": [
+                {"method": "popup", "minutes": max(0, min(int(reminder_minutes), 40320))}
+            ],
+        }
 
     created = calendar_service().events().insert(calendarId="primary", body=body).execute()
     logger.info("Created calendar event %s (%s)", created.get("id"), summary)

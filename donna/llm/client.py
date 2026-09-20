@@ -266,6 +266,11 @@ class OllamaClient:
     ) -> ChatResult:
         """Free-form turn, optionally with tools. Used by the agent loop."""
         spec = registry.get_spec(task)
+        # The first system message is the stable persona; everything else — including the
+        # world-state block, which is also a system message — has to stay in `prompt`.
+        # Filtering out every system role dropped the state from the trace entirely, so the
+        # dashboard could not show what Donna had actually been told. That is precisely the
+        # question the trace view exists to answer.
         system = next((m["content"] for m in messages if m.get("role") == "system"), None)
         trace = Trace(
             task=task,
@@ -273,7 +278,7 @@ class OllamaClient:
             device=spec.device,
             parent_id=parent_trace_id,
             system_prompt=system,
-            prompt=dump_messages([m for m in messages if m.get("role") != "system"]),
+            prompt=dump_messages(messages[1:] if system else messages),
         )
 
         started = time.perf_counter()

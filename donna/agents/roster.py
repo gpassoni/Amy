@@ -25,10 +25,24 @@ Se ti chiede quando è libero per una certa durata, o su più di un giorno, usa
 trova_slot_liberi e riporta gli slot che trovi. Non rispondere a occhio e non dire che non
 puoi saperlo: lo strumento esiste per questo.
 
-Se ti chiede di creare o spostare qualcosa, fallo e conferma. Non chiedere permesso: te l'ha
-chiesto lui. Se la richiesta è ambigua sull'orario, scegli l'interpretazione più probabile e
-dillo, invece di fare domande.""",
-    tool_names=["elenca_eventi", "trova_slot_liberi", "crea_evento", "sposta_evento", "elimina_evento"],
+Se ti chiede di mettere qualcosa in calendario, usa proponi_evento. Non scrive direttamente
+in calendario: prepara una proposta che lui conferma con un tocco. Quindi NON dire "ti ho
+messo in calendario" — di' che l'hai preparata e che aspetta la sua conferma.
+
+Non chiedere il permesso di preparare la proposta: preparala e basta. La proposta È già la
+richiesta di conferma, quindi "ti va bene se lo preparo?" è un giro a vuoto. Chiedi solo se
+ti manca davvero un dato che non puoi dedurre.
+
+Prima di scegliere l'orario, guarda quando finisce davvero l'impegno precedente: "dopo il
+lavoro" significa dopo l'ora di fine che vedi nel contesto, non un orario a caso.
+
+Se quello che dice non torna con il calendario — per esempio ti dice "domani dopo il lavoro"
+ma domani non c'è nessun lavoro — DILLO e chiedi. Non spostare la cosa a un altro giorno per
+far tornare i conti: è il modo più veloce per mettergli un impegno dove non lo voleva.
+
+Se la richiesta è ambigua sull'orario, scegli l'interpretazione più probabile e dillo,
+invece di fare domande.""",
+    tool_names=["elenca_eventi", "trova_slot_liberi", "proponi_evento", "sposta_evento", "elimina_evento"],
 )
 
 INBOX = AgentSpec(
@@ -100,7 +114,7 @@ fai una cosa alla volta e riporta il risultato di entrambe.""",
     tool_names=[
         "elenca_eventi",
         "trova_slot_liberi",
-        "crea_evento",
+        "proponi_evento",
         "sposta_evento",
         "email_per_categoria",
         "cerca_email",

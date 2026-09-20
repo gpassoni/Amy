@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import timedelta
 
 from donna.agents import tools as toolkit
 
@@ -83,10 +84,99 @@ def parse_horizon_days(message: str) -> int:
     return DEFAULT_HORIZON_DAYS
 
 
+# Day references worth resolving explicitly, with their offset from today.
+_DAY_REFS: list[tuple[re.Pattern[str], int]] = [
+    (re.compile(r"\bdopodomani\b", re.I), 2),
+    (re.compile(r"\bdomani\b|\bdomattina\b", re.I), 1),
+    (re.compile(r"\boggi\b|\bstasera\b|\bstamattina\b|\bstanotte\b", re.I), 0),
+]
+_WEEKDAY_REF = re.compile(
+    r"\b(lunedì|lunedi|martedì|martedi|mercoledì|mercoledi|giovedì|giovedi|venerdì|venerdi|"
+    r"sabato|domenica)\b",
+    re.I,
+)
+_WEEKDAY_INDEX = {
+    "lunedì": 0, "lunedi": 0, "martedì": 1, "martedi": 1, "mercoledì": 2, "mercoledi": 2,
+    "giovedì": 3, "giovedi": 3, "venerdì": 4, "venerdi": 4, "sabato": 5, "domenica": 6,
+}
+
+
+def referenced_day(message: str) -> int | None:
+    """Offset in days of the day the message is about, if it names one."""
+    for pattern, offset in _DAY_REFS:
+        if pattern.search(message or ""):
+            return offset
+    match = _WEEKDAY_REF.search(message or "")
+    if match:
+        from donna.timeutil import now_local
+
+        target = _WEEKDAY_INDEX[match.group(1).lower()]
+        ahead = (target - now_local().weekday()) % 7
+        return ahead or 7
+    return None
+
+
+def day_agenda(offset: int) -> str:
+    """That day's schedule, stated plainly.
+
+    Exists because absence is hard for the model to read. Asked to schedule something
+    "tomorrow after work" on a day with nothing on it, it asserted that work ended at 16:30 —
+    borrowed from the other days — even with "lunedì 21: niente in programma" sitting in the
+    week list. A list is something it skims; a dedicated block about the day in question is
+    something it answers from.
+    """
+    from datetime import date as _date
+
+    from donna.store import repo
+    from donna.timeutil import day_bounds_utc, format_it, now_local, parse_iso, to_local
+
+    day = _date.today() + timedelta(days=offset)
+    start, end = day_bounds_utc(day)
+    rows = repo.events_between(start, end)
+    label = format_it(now_local() + timedelta(days=offset), with_time=False)
+
+    if not rows:
+        return (
+            f"## Il giorno di cui sta parlando: {label}\n"
+            f"In calendario non c'è NIENTE quel giorno. Nessun lavoro, nessun impegno.\n"
+            "Se la sua richiesta presuppone un impegno che quel giorno non esiste "
+            "(per esempio \"dopo il lavoro\"), diglielo invece di inventare un orario."
+        )
+
+    lines = []
+    for row in rows:
+        begin, finish = parse_iso(row["start_ts"]), parse_iso(row["end_ts"])
+        if row["all_day"]:
+            lines.append(f"- {row['summary']} (tutto il giorno)")
+        elif begin and finish:
+            lines.append(
+                f"- {to_local(begin):%H:%M}–{to_local(finish):%H:%M}: {row['summary']}"
+            )
+    last_end = max(
+        (parse_iso(r["end_ts"]) for r in rows if r["end_ts"] and not r["all_day"]),
+        default=None,
+    )
+    tail = (
+        f"\nL'ultimo impegno di quel giorno finisce alle {to_local(last_end):%H:%M}."
+        if last_end
+        else ""
+    )
+    return f"## Il giorno di cui sta parlando: {label}\n" + "\n".join(lines) + tail
+
+
 def for_message(message: str) -> str | None:
     """A context block of precomputed facts, or None when nothing applies."""
+    blocks: list[str] = []
+
+    offset = referenced_day(message)
+    if offset is not None:
+        try:
+            blocks.append(day_agenda(offset))
+        except Exception:
+            logger.warning("Prefetch dell'agenda del giorno fallito", exc_info=True)
+
     if not wants_availability(message):
-        return None
+        return "\n\n".join(blocks) if blocks else None
 
     minutes = parse_duration_minutes(message)
     days = parse_horizon_days(message)
@@ -95,13 +185,14 @@ def for_message(message: str) -> str | None:
     except Exception:
         # A prefetch failure must not fail the turn; the model still has the world state.
         logger.warning("Prefetch degli slot liberi fallito", exc_info=True)
-        return None
+        return "\n\n".join(blocks) if blocks else None
 
     logger.info("Prefetch slot: %d min entro %d giorni", minutes, days)
-    return (
+    blocks.append(
         f"## Slot liberi calcolati adesso (durata richiesta: {minutes} minuti, "
         f"prossimi {days} giorni)\n"
         "Questi sono calcolati sul calendario reale. Usa ESATTAMENTE questi orari, non "
         "inventarne altri e non aggiungere spiegazioni su cosa c'è prima o dopo.\n\n"
         f"{slots}"
     )
+    return "\n\n".join(blocks)

@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from donna.agents import prefetch, roster, router
+from donna.agents import fallback, prefetch, roster, router
 from donna.agents.base import AgentReply, run as run_agent
 from donna.context import builder
 from donna.store import activity, repo
@@ -42,6 +42,13 @@ HISTORY_TURNS = 8
 # slots"), not enough to re-assert stale specifics as if they were current. User turns are
 # never truncated — what he said is not something we get to summarise.
 ASSISTANT_HISTORY_CHARS = 220
+
+# Intents that are a request to change something rather than to look something up.
+MUTATION_INTENTS = {"schedule_mutate", "task_mutate", "proposal_action"}
+
+# Intents with a deterministic structured path that does not depend on the model choosing
+# to emit a tool call. See donna/agents/fallback.py.
+FALLBACK_INTENTS = {"schedule_mutate"}
 
 
 @dataclass(slots=True)
@@ -103,13 +110,49 @@ def handle(
             repo.recent_turns(channel, chat_id, limit=HISTORY_TURNS)
         )
 
+        # The router already decided this was a request to change something; tell the agent
+        # loop, so "did you actually call a tool" becomes a checked postcondition.
+        #
+        # Except for schedule_mutate, where the nudge is skipped: the model refused to emit a
+        # tool call three times running for exactly this intent, once while explicitly
+        # agreeing that it should. The structured fallback below handles it deterministically,
+        # so spending a round trip on a retry that is not going to work just adds three
+        # seconds to every "put this in my calendar" (12.3 s measured, against ~5 s without).
+        expects_mutation = decision.intent in MUTATION_INTENTS
+        has_fallback = decision.intent in FALLBACK_INTENTS
         reply: AgentReply = run_agent(
-            spec, message, context=context, history=history, parent_trace_id=run.id
+            spec,
+            message,
+            context=context,
+            history=history,
+            parent_trace_id=run.id,
+            expect_mutation=expects_mutation and not has_fallback,
         )
+        # The tool path has had its chance, including one explicit nudge. If a calendar change
+        # was asked for and still nothing was created, stop asking the model to *decide* to
+        # call a tool and ask it to fill a schema instead — a grammar-constrained answer it
+        # cannot refuse. See donna/agents/fallback.py for what prompted this.
+        used_fallback = False
+        if expects_mutation and not reply.mutated and has_fallback:
+            outcome = fallback.propose_from_request(
+                message, context=context, parent_trace_id=run.id
+            )
+            if outcome is not None:
+                used_fallback = True
+                reply.text = outcome.text
+                if outcome.proposal_id is not None:
+                    reply.tool_calls.append(
+                        ("proponi_evento", f"PROPOSTA #{outcome.proposal_id}")
+                    )
+
         run.note(
             tools=[name for name, _ in reply.tool_calls],
             iterations=reply.iterations,
             reply_chars=len(reply.text),
+            expected_mutation=expects_mutation,
+            mutated=reply.mutated,
+            claimed_without_acting=reply.claimed_without_acting,
+            used_fallback=used_fallback,
         )
         run.describe(f"{decision.intent} → {spec.name}: {message[:80]}")
 

@@ -99,6 +99,7 @@ def accept(proposal_id: int, *, via: str = "cli") -> Resolution:
                 end,
                 description=_description_for(row, payload),
                 location=payload.get("location"),
+                reminder_minutes=payload.get("reminder_minutes"),
             )
             result_ref, link = created.get("id"), created.get("htmlLink")
         elif row["kind"] == "task":
