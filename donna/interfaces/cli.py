@@ -363,6 +363,115 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_auth(_: argparse.Namespace) -> int:
+    from donna.google import auth
+
+    if auth.is_authorized():
+        print(f"{OK} già autorizzata — token valido")
+        return 0
+    print("Apro il browser per il consenso Google...")
+    try:
+        auth.GoogleServiceManager().credentials(interactive=True)
+    except Exception as exc:
+        print(f"{BAD} autorizzazione fallita: {exc}")
+        return 1
+    print(f"{OK} autorizzata, token salvato")
+    return 0
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    from donna.google import auth
+    from donna.store import repo
+    from donna.sync.calendar_sync import sync_calendar
+    from donna.sync.gmail_sync import sync_gmail
+    from donna.sync.tasks_sync import sync_tasks
+
+    get_db().migrate()
+    if not auth.is_authorized():
+        print(f"{BAD} non autorizzata. Esegui prima: python -m donna auth")
+        return 1
+
+    runners = {
+        "gmail": lambda: sync_gmail(full=args.full, limit=args.limit),
+        "calendar": sync_calendar,
+        "tasks": sync_tasks,
+    }
+    chosen = list(runners) if args.resource == "all" else [args.resource]
+
+    print()
+    failures = 0
+    for name in chosen:
+        result = runners[name]()
+        marker = OK if result.ok else BAD
+        failures += 0 if result.ok else 1
+        print(f"  {marker} {result.summary()}")
+
+    print(f"\n{BOLD}Stato del mirror{RESET}")
+    db = get_db()
+    print(f"  email      {db.scalar('SELECT count(*) FROM emails', default=0)}")
+    print(f"  eventi     {db.scalar('SELECT count(*) FROM events', default=0)}")
+    print(f"  task       {db.scalar('SELECT count(*) FROM tasks', default=0)}")
+    untriaged = db.scalar("SELECT count(*) FROM emails WHERE category IS NULL", default=0)
+    print(f"  da triare  {untriaged}")
+
+    print(f"\n{DIM}  cursori di sync{RESET}")
+    for row in repo.sync_status():
+        state = row["last_error"] or "ok"
+        cursor = (row["cursor"] or "-")[:32]
+        print(f"    {row['resource']:<10} cursor={cursor:<34} {state}")
+
+    return 1 if failures else 0
+
+
+def cmd_status(_: argparse.Namespace) -> int:
+    """What Donna currently knows. The fastest way to see whether the mirror is sane."""
+    from datetime import date
+
+    from donna.store import repo
+    from donna.timeutil import day_bounds_utc, format_it, parse_iso
+
+    get_db().migrate()
+    db = get_db()
+
+    print(f"\n{BOLD}Cosa sa Donna{RESET}  {DIM}{format_it(now_local())}{RESET}\n")
+
+    counts = repo.category_counts()
+    total = sum(counts.values())
+    print(f"  {BOLD}Email{RESET}  {total} in totale")
+    for key, count in sorted(counts.items(), key=lambda kv: -kv[1]):
+        print(f"    {key:<16} {count}")
+
+    today_start, today_end = day_bounds_utc(date.today())
+    _, week_end = day_bounds_utc(date.today(), days=7)
+
+    today = repo.events_between(today_start, today_end)
+    print(f"\n  {BOLD}Oggi{RESET}  {len(today)} eventi")
+    for row in today:
+        start = parse_iso(row["start_ts"])
+        when = format_it(start).split(", ")[-1] if start else "?"
+        print(f"    {when}  {row['summary']}")
+
+    week = repo.events_between(today_end, week_end)
+    print(f"\n  {BOLD}Prossimi 7 giorni{RESET}  {len(week)} eventi")
+    for row in week[:10]:
+        start = parse_iso(row["start_ts"])
+        print(f"    {format_it(start) if start else '?'}  {row['summary']}")
+
+    open_tasks = repo.open_tasks(limit=10)
+    overdue = {r["id"] for r in repo.overdue_tasks()}
+    print(f"\n  {BOLD}Task aperte{RESET}  {len(open_tasks)}")
+    for row in open_tasks:
+        due = parse_iso(row["due_ts"])
+        when = format_it(due, with_time=False) if due else "senza scadenza"
+        flag = f" {WARN} in ritardo" if row["id"] in overdue else ""
+        print(f"    {row['title'][:48]:<50} {when}{flag}")
+
+    pending = db.scalar("SELECT count(*) FROM proposals WHERE state='pending'", default=0)
+    print(f"\n  {BOLD}Proposte in attesa{RESET}  {pending}")
+    print()
+    return 0
+
+
 def cmd_traces(args: argparse.Namespace) -> int:
     rows = get_db().query(
         "SELECT created_at, task, model, device, tokens_in, tokens_out, latency_ms, ok"
@@ -396,6 +505,20 @@ def build_parser() -> argparse.ArgumentParser:
     smoke = sub.add_parser("smoke", help="una chiamata reale per ogni task del registry")
     smoke.add_argument("-v", "--verbose", action="store_true", help="mostra anche gli output")
     smoke.set_defaults(func=cmd_smoke)
+
+    sub.add_parser("auth", help="autorizza l'accesso a Google").set_defaults(func=cmd_auth)
+
+    sync = sub.add_parser("sync", help="aggiorna il mirror locale da Google")
+    sync.add_argument(
+        "-r", "--resource", choices=["all", "gmail", "calendar", "tasks"], default="all"
+    )
+    sync.add_argument(
+        "--full", action="store_true", help="ignora il cursore e rifai il backfill di Gmail"
+    )
+    sync.add_argument("-n", "--limit", type=int, default=None, help="massimo di email da leggere")
+    sync.set_defaults(func=cmd_sync)
+
+    sub.add_parser("status", help="cosa sa Donna in questo momento").set_defaults(func=cmd_status)
 
     traces = sub.add_parser("traces", help="ultime chiamate LLM registrate")
     traces.add_argument("-n", "--limit", type=int, default=20)
