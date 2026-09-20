@@ -462,6 +462,12 @@ def pending_proposals(limit: int = 20) -> list[sqlite3.Row]:
     )
 
 
+def pending_proposal_count() -> int:
+    return get_db().scalar(
+        "SELECT count(*) FROM proposals WHERE state = 'pending'", default=0
+    )
+
+
 def unnotified_proposals(limit: int = 10) -> list[sqlite3.Row]:
     return get_db().query(
         "SELECT * FROM proposals WHERE state = 'pending' AND notified_at IS NULL"
@@ -542,6 +548,57 @@ def proposal_payload(row: sqlite3.Row) -> dict[str, Any]:
         return json.loads(row["payload_json"])
     except (ValueError, TypeError):
         return {}
+
+
+# ================================================================== conversation
+def append_turn(
+    channel: str,
+    chat_id: str,
+    *,
+    role: str,
+    content: str,
+    agent: str | None = None,
+    intent: str | None = None,
+    trace_id: str | None = None,
+) -> int:
+    cursor = get_db().execute(
+        "INSERT INTO conversations (channel, chat_id, role, content, agent, intent, trace_id,"
+        " created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (channel, chat_id, role, content, agent, intent, trace_id, iso_utc(now_utc())),
+    )
+    return cursor.lastrowid
+
+
+def recent_turns(channel: str, chat_id: str, *, limit: int = 8) -> list[dict[str, str]]:
+    """The last `limit` turns, oldest first, shaped for a chat payload.
+
+    Fetched newest-first with a LIMIT and then reversed, so a long history costs nothing: the
+    index on (channel, chat_id, id DESC) makes this a partial scan rather than a full one.
+    """
+    rows = get_db().query(
+        "SELECT role, content FROM conversations WHERE channel = ? AND chat_id = ?"
+        " ORDER BY id DESC LIMIT ?",
+        (channel, chat_id, limit),
+    )
+    return [{"role": r["role"], "content": r["content"] or ""} for r in reversed(rows)]
+
+
+def clear_turns(channel: str, chat_id: str) -> int:
+    cursor = get_db().execute(
+        "DELETE FROM conversations WHERE channel = ? AND chat_id = ?", (channel, chat_id)
+    )
+    get_db().execute(
+        "DELETE FROM conversation_summaries WHERE channel = ? AND chat_id = ?", (channel, chat_id)
+    )
+    return cursor.rowcount
+
+
+def turn_count(channel: str, chat_id: str) -> int:
+    return get_db().scalar(
+        "SELECT count(*) FROM conversations WHERE channel = ? AND chat_id = ?",
+        (channel, chat_id),
+        default=0,
+    )
 
 
 # ================================================================== feedback

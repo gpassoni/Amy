@@ -1,28 +1,22 @@
-import os
+"""Donna — entry point.
+
+Everything runs locally: inference goes to Ollama on this machine, and the only network calls
+are to Google for your own mail, calendar and tasks.
+
+    python main.py          start the bot and the background pipeline
+    python -m donna doctor  check the environment first
+    python -m donna chat    talk to her from the terminal, no Telegram needed
+"""
+from __future__ import annotations
+
+import sys
+
 from dotenv import load_dotenv
 
-# Load environment variables before importing any service
 load_dotenv()
 
-from services.telegram_bot import avvia_bot  # noqa: E402 — triggers logging setup in google_auth
-
-import logging
-logger = logging.getLogger("DonnaMain")
-
-
-def main():
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        logger.error("ERRORE: TELEGRAM_BOT_TOKEN non trovato nel file .env!")
-        return
-
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if not openai_key:
-        logger.error("ERRORE: OPENAI_API_KEY non trovato nel file .env!")
-        return
-
-    avvia_bot(token)
+from donna.app import run  # noqa: E402 — must follow load_dotenv
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(run())

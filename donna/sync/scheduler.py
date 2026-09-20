@@ -66,7 +66,11 @@ def run_cycle(*, full_gmail: bool = False) -> dict[str, object]:
     }
 
 
-def build_scheduler(extra_jobs: dict[str, Callable[[], object]] | None = None) -> BackgroundScheduler:
+def build_scheduler(
+    extra_jobs: dict[str, Callable[[], object]] | None = None,
+    *,
+    cycle_job: Callable[[], object] | None = None,
+) -> BackgroundScheduler:
     """Wire the recurring jobs. Caller starts and stops it.
 
     extra_jobs lets later phases (triage, proposal expiry, notifications) attach without
@@ -81,12 +85,13 @@ def build_scheduler(extra_jobs: dict[str, Callable[[], object]] | None = None) -
     # One job for the whole cycle rather than one per stage: they are strictly sequential
     # and share a single model, so separate jobs would only create the illusion of
     # parallelism while making overlap possible.
+    # `cycle_job` lets the composition root wrap the cycle (to push notifications after it)
+    # without this module importing an interface. Defaults to the pipeline alone.
     scheduler.add_job(
-        run_cycle,
+        cycle_job or run_cycle,
         trigger=IntervalTrigger(minutes=settings.sync_interval_minutes),
         id="cycle",
-        name="Sync, triage, estrazione, scadenze",
-        next_run_time=None,  # the caller triggers the first pass explicitly
+        name="Sync, triage, estrazione",
     )
 
     for job_id, func in (extra_jobs or {}).items():

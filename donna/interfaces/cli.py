@@ -712,6 +712,74 @@ def cmd_reject(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_route(args: argparse.Namespace) -> int:
+    from donna.agents import roster, router
+
+    get_db().migrate()
+    decision = router.route(" ".join(args.message))
+    spec = roster.for_intent(decision.intent)
+    print(f"  intent   {BOLD}{decision.intent}{RESET}")
+    print(f"  via      {decision.via} (confidenza {decision.confidence:.2f})")
+    print(f"  agente   {spec.name} — strumenti: {', '.join(spec.tool_names) or 'nessuno'}")
+    return 0
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    from donna.agents import orchestrator
+    from donna.context import builder
+
+    get_db().migrate()
+
+    if args.message:
+        result = orchestrator.handle(" ".join(args.message), channel="cli", chat_id=args.chat)
+        print(f"\n{result.text}\n")
+        if args.verbose:
+            _print_turn_debug(result)
+        return 0
+
+    print(f"\n{BOLD}Donna{RESET} {DIM}/esci  /reset  /contesto  /debug{RESET}\n")
+    debug = args.verbose
+    prompt = "\x1b[1m>\x1b[0m " if _COLOR else "> "
+    while True:
+        try:
+            line = input(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 0
+        if not line:
+            continue
+        if line in {"/esci", "/exit", "/quit"}:
+            return 0
+        if line == "/reset":
+            removed = orchestrator.reset("cli", args.chat)
+            print(f"{DIM}  {removed} messaggi dimenticati{RESET}\n")
+            continue
+        if line == "/contesto":
+            print(f"\n{DIM}{builder.render()}{RESET}\n")
+            continue
+        if line == "/debug":
+            debug = not debug
+            print(f"{DIM}  debug {'on' if debug else 'off'}{RESET}\n")
+            continue
+
+        result = orchestrator.handle(line, channel="cli", chat_id=args.chat)
+        print(f"\n{result.text}\n")
+        if debug:
+            _print_turn_debug(result)
+
+
+
+def _print_turn_debug(result) -> None:
+    print(
+        f"{DIM}  intent={result.intent} ({result.route_via} {result.confidence:.2f}) "
+        f"agente={result.agent} {result.latency_ms} ms{RESET}"
+    )
+    for name, output in result.tool_calls:
+        first = output.splitlines()[0] if output else ""
+        print(f"{DIM}  -> {name}: {first[:100]}{RESET}")
+    print()
+
+
 def cmd_seed(args: argparse.Namespace) -> int:
     from donna.eval import seed
 
@@ -816,6 +884,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--only-commitments", action="store_true", help="solo i casi con un impegno reale"
     )
     seed.set_defaults(func=cmd_seed)
+
+    chat = sub.add_parser("chat", help="parla con Donna dal terminale")
+    chat.add_argument("message", nargs="*", help="una domanda singola; senza, apre la REPL")
+    chat.add_argument("--chat", default="local", help="id della conversazione")
+    chat.add_argument("-v", "--verbose", action="store_true", help="mostra intent e strumenti")
+    chat.set_defaults(func=cmd_chat)
+
+    route = sub.add_parser("route", help="mostra come verrebbe instradato un messaggio")
+    route.add_argument("message", nargs="+")
+    route.set_defaults(func=cmd_route)
 
     traces = sub.add_parser("traces", help="ultime chiamate LLM registrate")
     traces.add_argument("-n", "--limit", type=int, default=20)
