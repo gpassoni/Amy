@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% set page = 'proposals' %}
+{% block title %}Donna — proposte{% endblock %}
+
+{% block body %}
+<h1>Proposte</h1>
+<p class="lede">
+  Impegni che Donna ha trovato nelle email. Niente arriva in calendario senza che tu lo decida.
+  <strong>Modificare</strong> una proposta è l'azione più utile di tutte: è la sola che registra
+  anche quale era la risposta giusta, non solo che era sbagliata.
+</p>
+
+{% for p in proposals %}
+  {% set row = p.row %}
+  {% set pl = p.payload %}
+  <div class="prop {{ 'shaky' if (row.confidence or 0) < 0.7 }}">
+    <div style="display:flex; justify-content:space-between; gap:16px; align-items:baseline">
+      <div>
+        <div class="title">{{ pl.title or '(senza titolo)' }}</div>
+        <div class="meta">
+          #{{ row.id }} · {{ describe_proposal(row) }}
+          {% if pl.location %} · {{ pl.location }}{% endif %}
+        </div>
+      </div>
+      <div class="right">
+        <span class="chip {{ 'run' if (row.confidence or 0) < 0.7 else 'ok' }}">
+          {{ "%.0f"|format((row.confidence or 0) * 100) }}%
+        </span>
+        <div class="meta">{{ row.created_at | ago }} fa</div>
+      </div>
+    </div>
+
+    <div class="why">
+      {% if row.evidence_quote %}
+        Dall'email: <q>{{ row.evidence_quote }}</q><br>
+      {% endif %}
+      {% if row.reasoning %}{{ row.reasoning }}{% endif %}
+      {% if pl.date_source %}
+        <br><span class="dim">
+          data {{ {'agreed': 'confermata due volte', 'phrase': 'ricavata dal testo',
+                   'model': 'stimata dal modello, senza frase esplicita'}.get(pl.date_source, pl.date_source) }}
+        </span>
+      {% endif %}
+      {% if p.email %}
+        <br><span class="dim">
+          da {{ p.email.from_name or p.email.from_addr }} — {{ (p.email.subject or '')[:80] }}
+        </span>
+      {% endif %}
+      {% if row.trace_id %}
+        <br><a href="/traces/{{ row.trace_id }}">vedi la chiamata al modello →</a>
+      {% endif %}
+    </div>
+
+    <div class="actions">
+      <form method="post" action="/proposals/{{ row.id }}/accept">
+        <button class="go" type="submit">✅ Aggiungi al calendario</button>
+      </form>
+      <form method="post" action="/proposals/{{ row.id }}/reject" style="display:flex; gap:8px">
+        <input type="text" name="note" placeholder="perché no? (facoltativo, serve per imparare)"
+               style="width:300px">
+        <button class="no" type="submit">🗑 Scarta</button>
+      </form>
+    </div>
+
+    <details class="editor">
+      <summary>Correggi e accetta</summary>
+      <div class="body">
+        <form method="post" action="/proposals/{{ row.id }}/edit">
+          <div class="fields">
+            <div>
+              <label class="f" for="t{{ row.id }}">Titolo</label>
+              <input id="t{{ row.id }}" type="text" name="title" value="{{ pl.title or '' }}"
+                     style="width:100%" required>
+            </div>
+            <div>
+              <label class="f" for="s{{ row.id }}">Inizio</label>
+              <input id="s{{ row.id }}" type="datetime-local" name="start_local"
+                     value="{{ pl.start_ts | localinput }}" required>
+            </div>
+            <div>
+              <label class="f" for="e{{ row.id }}">Fine</label>
+              <input id="e{{ row.id }}" type="datetime-local" name="end_local"
+                     value="{{ pl.end_ts | localinput }}">
+            </div>
+            <div>
+              <label class="f" for="l{{ row.id }}">Luogo</label>
+              <input id="l{{ row.id }}" type="text" name="location" value="{{ pl.location or '' }}"
+                     style="width:100%">
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; gap:14px; align-items:center">
+            <label class="muted" style="font-size:13px">
+              <input type="checkbox" name="all_day" value="1" {{ 'checked' if pl.all_day }}>
+              tutto il giorno
+            </label>
+            <button class="edit" type="submit">Salva la correzione e aggiungi</button>
+          </div>
+          <div class="dim" style="margin-top:9px">
+            La versione originale e la tua correzione vengono salvate entrambe: è questa coppia
+            che potrà servire per addestrare il modello.
+          </div>
+        </form>
+      </div>
+    </details>
+  </div>
+{% else %}
+  <div class="panel"><div class="empty">Nessuna proposta in attesa. Sei in pari.</div></div>
+{% endfor %}
+
+<div class="panel">
+  <h2>Già decise</h2>
+  <table>
+    <thead><tr><th>#</th><th>cosa</th><th>esito</th><th>dove</th><th>quando</th></tr></thead>
+    <tbody>
+    {% for row in history %}
+      <tr>
+        <td class="mono">{{ row.id }}</td>
+        <td>{{ payload_of(row).title or '—' }}</td>
+        <td>
+          <span class="chip {{ {'accepted':'ok','rejected':'fail','edited':'run'}.get(row.state,'') }}">
+            {{ row.state }}
+          </span>
+        </td>
+        <td class="mono">{{ row.resolved_via or '—' }}</td>
+        <td class="mono">{{ row.resolved_at | ago }} fa</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">Ancora nessuna decisione.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

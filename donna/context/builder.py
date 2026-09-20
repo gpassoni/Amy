@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from donna.config import get_settings
 from donna.pipeline.resolve import describe as describe_proposal
 from donna.store import repo
 from donna.timeutil import (
@@ -59,6 +60,7 @@ class WorldState:
     """Assembled context, with the pieces kept separate so interfaces can reuse them."""
 
     now_line: str
+    about_user: str = ""
     today: list[str] = field(default_factory=list)
     gaps: list[str] = field(default_factory=list)
     week: list[str] = field(default_factory=list)
@@ -68,7 +70,12 @@ class WorldState:
     facts: list[str] = field(default_factory=list)
 
     def render(self) -> str:
-        parts = [f"## Adesso\n{self.now_line}"]
+        parts: list[str] = []
+        # First, because this block sits closest to the question and Italian agreement kept
+        # coming out wrong when it was only stated in the persona far above.
+        if self.about_user:
+            parts.append("## Con chi parli\n" + self.about_user)
+        parts.append(f"## Adesso\n{self.now_line}")
 
         parts.append(
             "## Oggi\n" + ("\n".join(self.today) if self.today else "Nessun impegno in calendario.")
@@ -161,8 +168,18 @@ def build(*, query: str | None = None, include_facts: bool = True) -> WorldState
     """
     today = date.today()
     now = now_local()
+    settings = get_settings()
+    masculine = settings.user_grammatical_gender.lower().startswith("m")
     state = WorldState(
         now_line=f"{format_it(now)} ({now:%d/%m/%Y})",
+        about_user=(
+            f"{settings.user_name}. "
+            + (
+                'Rivolgiti a lui al MASCHILE: "sei libero", "sei pronto", "ti ho messo".'
+                if masculine
+                else 'Rivolgiti a lei al FEMMINILE: "sei libera", "sei pronta", "ti ho messo".'
+            )
+        ),
     )
 
     today_start, today_end = day_bounds_utc(today)

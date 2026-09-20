@@ -104,6 +104,7 @@ def run(
     *,
     context: str,
     history: list[dict[str, Any]] | None = None,
+    parent_trace_id: str | None = None,
 ) -> AgentReply:
     """Run one agent turn, including any tool round trips."""
     llm = get_llm()
@@ -132,7 +133,9 @@ def run(
     for iteration in range(1, spec.max_iterations + 1):
         reply.iterations = iteration
         try:
-            result = llm.chat(spec.task, messages, tools=schemas or None)
+            result = llm.chat(
+                spec.task, messages, tools=schemas or None, parent_trace_id=parent_trace_id
+            )
         except LLMError as exc:
             logger.error("Agent %s failed: %s", spec.name, exc)
             reply.text = "Ho un problema tecnico con il modello locale. Riprova tra un istante."
@@ -161,7 +164,9 @@ def run(
             # returning nothing — the tool output is already in the transcript, so the model
             # has everything it needs to summarise.
             try:
-                final = llm.chat(spec.task, messages, tools=None)
+                final = llm.chat(
+                    spec.task, messages, tools=None, parent_trace_id=parent_trace_id
+                )
                 reply.trace_ids.append(final.trace_id)
                 reply.text = final.content.strip()
             except LLMError:

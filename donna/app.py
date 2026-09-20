@@ -24,14 +24,52 @@ from donna.store.db import get_db
 logger = logging.getLogger(__name__)
 
 
+def _start_web() -> None:
+    """Serve the dashboard on its own thread.
+
+    A separate uvicorn loop rather than sharing the bot's: the bot owns its loop and mixing a
+    server into it couples two lifecycles that have no reason to be coupled. `daemon=True` means
+    the web thread cannot keep the process alive after the bot stops.
+
+    Bound to 127.0.0.1 by default. There is no authentication and the dashboard shows a real
+    mailbox, so it should not be reachable from the network without a deliberate decision.
+    """
+    import threading
+
+    import uvicorn
+
+    settings = get_settings()
+
+    def serve() -> None:
+        config = uvicorn.Config(
+            "donna.interfaces.web.app:app",
+            host=settings.web_host,
+            port=settings.web_port,
+            log_level="warning",
+            access_log=False,
+        )
+        uvicorn.Server(config).run()
+
+    threading.Thread(target=serve, name="donna-web", daemon=True).start()
+    logger.info(
+        "Dashboard su http://%s:%d", settings.web_host, settings.web_port
+    )
+
+
 def run() -> int:
-    """Start Donna: migrations, scheduler, bot. Blocks until interrupted."""
+    """Start Donna: migrations, scheduler, bot, dashboard. Blocks until interrupted."""
     setup_logging()
     settings = get_settings()
 
     applied = get_db().migrate()
     if applied:
         logger.info("Migrazioni applicate: %s", ", ".join(applied))
+
+    # A row left 'running' is the fingerprint of a crash mid-turn; clear those so the live view
+    # does not show phantom work forever.
+    from donna.store import activity
+
+    activity.sweep_stale()
 
     from donna.interfaces.telegram.bot import build as build_bot
     from donna.interfaces.telegram.notifier import Notifier
@@ -74,6 +112,8 @@ def run() -> int:
         logger.info(
             "Scheduler avviato: ciclo ogni %d minuti", settings.sync_interval_minutes
         )
+
+        _start_web()
 
     async def _on_stop(_application) -> None:
         if scheduler is not None and scheduler.running:

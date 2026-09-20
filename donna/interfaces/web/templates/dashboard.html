@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% set page = 'dashboard' %}
+{% block title %}Donna — quadro{% endblock %}
+
+{% block body %}
+<h1>Quadro</h1>
+<p class="lede">Tutto in locale: il modello gira su questa macchina, i dati stanno in un file SQLite qui accanto.</p>
+
+{% include "_live.html" %}
+
+<div class="panel">
+  <div class="stats">
+    <div class="stat {{ 'warn' if pending_count }}">
+      <div class="n">{{ pending_count }}</div>
+      <div class="l">proposte in attesa</div>
+    </div>
+    <div class="stat bad">
+      <div class="n">{{ categories.get('importante', 0) }}</div>
+      <div class="l">importanti (7g)</div>
+    </div>
+    <div class="stat">
+      <div class="n">{{ categories.get('da_leggere', 0) }}</div>
+      <div class="l">da leggere</div>
+    </div>
+    <div class="stat">
+      <div class="n">{{ categories.get('inutile', 0) }}</div>
+      <div class="l">inutili</div>
+    </div>
+    <div class="stat good">
+      <div class="n">{{ feedback.values() | sum }}</div>
+      <div class="l">correzioni raccolte</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid side">
+  <div>
+    <div class="panel">
+      <h2>Oggi</h2>
+      <div class="rows">
+        {% for e in today_events %}
+          <div class="row">
+            <span class="t">
+              {% if e.all_day %}tutto il giorno{% else %}{{ e.start_ts | when }}{% endif %}
+            </span>
+            <span class="main">
+              {{ e.summary }}
+              {% if e.location %}<span class="sub">· {{ e.location[:40] }}</span>{% endif %}
+              {% if e.origin_proposal_id %}<span class="chip tool">da Donna</span>{% endif %}
+            </span>
+          </div>
+        {% else %}
+          <div class="empty">Niente in calendario oggi.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Prossimi giorni</h2>
+      <div class="rows">
+        {% for e in week_events %}
+          <div class="row">
+            <span class="t">{{ e.start_ts | when(with_time=not e.all_day) }}</span>
+            <span class="main">{{ e.summary }}</span>
+          </div>
+        {% else %}
+          <div class="empty">Niente in programma.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2>Da decidere</h2>
+      {% for p in proposals %}
+        {% set pl = payload_of(p) %}
+        <div class="row">
+          <span class="main">
+            <a href="/proposals">#{{ p.id }} {{ pl.title }}</a>
+            <div class="sub">{{ describe_proposal(p) }}</div>
+          </span>
+        </div>
+      {% else %}
+        <div class="empty">Nessuna proposta in attesa.</div>
+      {% endfor %}
+      {% if proposals %}
+        <div style="margin-top:12px"><a class="btn" href="/proposals">Rivedile tutte →</a></div>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <h2>Cose da fare</h2>
+      <div class="rows">
+        {% for t in tasks %}
+          <div class="row {{ 'late' if t.id in overdue }}">
+            <span class="t">{{ t.due_ts | when(with_time=False) if t.due_ts else '—' }}</span>
+            <span class="main">{{ t.title }}</span>
+          </div>
+        {% else %}
+          <div class="empty">Niente da fare. Sospetto.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

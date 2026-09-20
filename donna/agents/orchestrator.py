@@ -16,10 +16,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from donna.agents import roster, router
+from donna.agents import prefetch, roster, router
 from donna.agents.base import AgentReply, run as run_agent
 from donna.context import builder
-from donna.store import repo
+from donna.store import activity, repo
 from donna.timeutil import iso_utc, now_utc
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,21 @@ logger = logging.getLogger(__name__)
 # Turns of history replayed to the model. Small on purpose: the world-state block carries the
 # facts, so history only needs to carry the thread of the conversation.
 HISTORY_TURNS = 8
+
+# How much of a past *assistant* turn to replay.
+#
+# Stale answers in history turned out to be dangerously authoritative for this model. Twice it
+# reproduced an earlier reply verbatim instead of reading fresh state: once claiming five
+# pending proposals when seven were in front of it, and once repeating a list of invented
+# calendar slots — complete with "(dopo il colloquio HR)" — even after the correct slots had
+# been computed and handed to it as fact.
+#
+# Moving state after the history helped and was not enough. The deeper issue is that a long,
+# specific, fluent previous answer *looks* more like an answer than a data block does. So
+# assistant turns are replayed truncated: enough to keep the thread ("we were discussing
+# slots"), not enough to re-assert stale specifics as if they were current. User turns are
+# never truncated — what he said is not something we get to summarise.
+ASSISTANT_HISTORY_CHARS = 220
 
 
 @dataclass(slots=True)
@@ -39,6 +54,8 @@ class TurnResult:
     trace_ids: list[str] = field(default_factory=list)
     tool_calls: list[tuple[str, str]] = field(default_factory=list)
     latency_ms: int = 0
+    # Links a reply back to its activity row, so any interface can offer "what happened here".
+    activity_id: str | None = None
 
 
 def handle(
@@ -53,14 +70,48 @@ def handle(
 
     started = time.perf_counter()
 
-    decision = router.route(message)
-    spec = roster.for_intent(decision.intent)
+    # The whole turn is one activity row, written before any work starts, so the dashboard can
+    # show which agent is busy *while* it is busy rather than only after the fact.
+    with activity.record(
+        activity.TURN, "router", channel=channel, chat_id=chat_id, summary=message[:120]
+    ) as run:
+        decision = router.route(message)
+        spec = roster.for_intent(decision.intent)
 
-    # The query steers fact recall only; the rest of the world state is unconditional.
-    context = builder.build(query=message).render()
-    history = repo.recent_turns(channel, chat_id, limit=HISTORY_TURNS)
+        # The actor becomes the agent as soon as routing has chosen one.
+        run.actor = spec.name
+        run.note(
+            intent=decision.intent,
+            route_via=decision.via,
+            route_confidence=round(decision.confidence, 2),
+            agent=spec.name,
+        )
+        activity.reassign(run)
 
-    reply: AgentReply = run_agent(spec, message, context=context, history=history)
+        # The query steers fact recall only; the rest of the world state is unconditional.
+        context = builder.build(query=message).render()
+
+        # Some answers are arithmetic, and the model cannot be trusted to decide to compute
+        # them — it invented calendar gaps instead. Those are computed here and appended as
+        # fact. See donna/agents/prefetch.py.
+        precomputed = prefetch.for_message(message)
+        if precomputed:
+            context = f"{context}\n\n{precomputed}"
+            run.note(prefetched=True)
+
+        history = _history_for_model(
+            repo.recent_turns(channel, chat_id, limit=HISTORY_TURNS)
+        )
+
+        reply: AgentReply = run_agent(
+            spec, message, context=context, history=history, parent_trace_id=run.id
+        )
+        run.note(
+            tools=[name for name, _ in reply.tool_calls],
+            iterations=reply.iterations,
+            reply_chars=len(reply.text),
+        )
+        run.describe(f"{decision.intent} → {spec.name}: {message[:80]}")
 
     repo.append_turn(channel, chat_id, role="user", content=message)
     repo.append_turn(
@@ -82,6 +133,7 @@ def handle(
         trace_ids=([decision.trace_id] if decision.trace_id else []) + reply.trace_ids,
         tool_calls=reply.tool_calls,
         latency_ms=int((time.perf_counter() - started) * 1000),
+        activity_id=run.id,
     )
 
     if learn:
@@ -98,6 +150,21 @@ def handle(
         result.latency_ms,
     )
     return result
+
+
+def _history_for_model(turns: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Trim past assistant turns before replaying them. See ASSISTANT_HISTORY_CHARS.
+
+    The full text stays in the database — this only shapes what the model is shown, so the
+    dashboard and the Telegram transcript are unaffected.
+    """
+    trimmed: list[dict[str, str]] = []
+    for turn in turns:
+        content = turn.get("content") or ""
+        if turn.get("role") == "assistant" and len(content) > ASSISTANT_HISTORY_CHARS:
+            content = content[:ASSISTANT_HISTORY_CHARS].rstrip() + " […]"
+        trimmed.append({"role": turn["role"], "content": content})
+    return trimmed
 
 
 def _learn_quietly(message: str, *, channel: str, chat_id: str) -> None:

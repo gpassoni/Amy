@@ -220,6 +220,12 @@ def emails_by_category(category: str, *, since: str | None = None, limit: int = 
     )
 
 
+def recent_emails(limit: int = 50) -> list[sqlite3.Row]:
+    return get_db().query(
+        "SELECT * FROM emails ORDER BY received_at DESC LIMIT ?", (limit,)
+    )
+
+
 def category_counts(since: str | None = None) -> dict[str, int]:
     sql = "SELECT COALESCE(category, 'da_classificare') AS k, count(*) AS n FROM emails"
     params: list[Any] = []
@@ -462,6 +468,14 @@ def pending_proposals(limit: int = 20) -> list[sqlite3.Row]:
     )
 
 
+def resolved_proposals(limit: int = 20) -> list[sqlite3.Row]:
+    """Recently decided proposals — the record of what she got right and wrong."""
+    return get_db().query(
+        "SELECT * FROM proposals WHERE state != 'pending' ORDER BY resolved_at DESC LIMIT ?",
+        (limit,),
+    )
+
+
 def pending_proposal_count() -> int:
     return get_db().scalar(
         "SELECT count(*) FROM proposals WHERE state = 'pending'", default=0
@@ -581,6 +595,16 @@ def recent_turns(channel: str, chat_id: str, *, limit: int = 8) -> list[dict[str
         (channel, chat_id, limit),
     )
     return [{"role": r["role"], "content": r["content"] or ""} for r in reversed(rows)]
+
+
+def conversation(channel: str, chat_id: str, *, limit: int = 40) -> list[sqlite3.Row]:
+    """Full turns with metadata, for display. Unlike recent_turns, nothing is trimmed."""
+    rows = get_db().query(
+        "SELECT * FROM conversations WHERE channel = ? AND chat_id = ?"
+        " ORDER BY id DESC LIMIT ?",
+        (channel, chat_id, limit),
+    )
+    return list(reversed(rows))
 
 
 def clear_turns(channel: str, chat_id: str) -> int:
