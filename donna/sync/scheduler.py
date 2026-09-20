@@ -30,6 +30,42 @@ def run_all_syncs(*, full_gmail: bool = False) -> list[SyncResult]:
     return [sync_gmail(full=full_gmail), sync_calendar(), sync_tasks()]
 
 
+def run_cycle(*, full_gmail: bool = False) -> dict[str, object]:
+    """One complete pass: sync, triage, extract, expire.
+
+    Sequential and in this order because each step consumes the previous one's output, and
+    because they share a single GPU-resident model — running them concurrently would just
+    queue requests against the same runner while making the failure modes harder to read.
+
+    Imported lazily so that donna.sync does not depend on donna.pipeline; the dependency
+    runs one way, from pipeline to store.
+    """
+    from donna.config import get_settings
+    from donna.pipeline.extract import run_extraction
+    from donna.pipeline.resolve import expire_stale
+    from donna.pipeline.triage import run_triage
+
+    settings = get_settings()
+    syncs = run_all_syncs(full_gmail=full_gmail)
+    triaged = run_triage()
+    extracted = run_extraction()
+    expired = expire_stale(settings.proposal_expiry_days)
+
+    logger.info(
+        "Ciclo completo: %s | %s | %s | %d proposte scadute",
+        "; ".join(s.summary() for s in syncs),
+        triaged.summary(),
+        extracted.summary(),
+        expired,
+    )
+    return {
+        "syncs": syncs,
+        "triage": triaged,
+        "extraction": extracted,
+        "expired": expired,
+    }
+
+
 def build_scheduler(extra_jobs: dict[str, Callable[[], object]] | None = None) -> BackgroundScheduler:
     """Wire the recurring jobs. Caller starts and stops it.
 
@@ -42,11 +78,14 @@ def build_scheduler(extra_jobs: dict[str, Callable[[], object]] | None = None) -
         timezone=settings.calendar_timezone,
     )
 
+    # One job for the whole cycle rather than one per stage: they are strictly sequential
+    # and share a single model, so separate jobs would only create the illusion of
+    # parallelism while making overlap possible.
     scheduler.add_job(
-        run_all_syncs,
+        run_cycle,
         trigger=IntervalTrigger(minutes=settings.sync_interval_minutes),
-        id="sync_all",
-        name="Sincronizzazione Gmail, Calendar, Tasks",
+        id="cycle",
+        name="Sync, triage, estrazione, scadenze",
         next_run_time=None,  # the caller triggers the first pass explicitly
     )
 

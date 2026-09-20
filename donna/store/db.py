@@ -147,15 +147,32 @@ def reset_db_for_tests(path: Path | str) -> Database:
     return _db
 
 
-def upsert(table: str, row: dict[str, Any], *, conflict: str = "id") -> str:
+def upsert(
+    table: str,
+    row: dict[str, Any],
+    *,
+    conflict: str = "id",
+    preserve: Sequence[str] = (),
+) -> str:
     """Build an INSERT .. ON CONFLICT DO UPDATE statement for the given columns.
 
-    Returns SQL; caller supplies `row.values()` as params. Keeping this as a builder
-    rather than executing means repos stay explicit about which columns they touch.
+    Returns SQL; caller supplies `row.values()` as params. Keeping this as a builder rather
+    than executing means repos stay explicit about which columns they touch.
+
+    `preserve` names columns that are written on insert but never overwritten on conflict —
+    for columns owned by something other than the writer. A sync pass must not clobber
+    provenance recorded by the approval flow, in the same way it must not clobber a triage
+    verdict.
     """
     cols = list(row)
     placeholders = ", ".join("?" for _ in cols)
-    updates = ", ".join(f"{c}=excluded.{c}" for c in cols if c != conflict)
+    skip = {conflict, *preserve}
+    updates = ", ".join(f"{c}=excluded.{c}" for c in cols if c not in skip)
+    if not updates:
+        return (
+            f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "
+            f"ON CONFLICT({conflict}) DO NOTHING"
+        )
     return (
         f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) "
         f"ON CONFLICT({conflict}) DO UPDATE SET {updates}"

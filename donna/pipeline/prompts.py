@@ -64,11 +64,23 @@ un appuntamento, una convocazione, una scadenza con data, un viaggio, un evento 
 partecipa.
 
 NON è un impegno:
-- una promozione con scadenza commerciale ("offerta valida fino al 30")
+- una promozione con scadenza commerciale ("offerta valida fino al 30", "acquista entro
+  venerdì"): è una scadenza di chi vende, non un obbligo suo
 - una data passata o una data citata come riferimento storico
 - un orario di apertura, una data di fondazione, una data in una firma
-- "ti faremo sapere", "a breve", "appena possibile"
+- una data che riguarda il mondo e non lui ("la conferenza si terrà il 9 giugno")
+- "ti faremo sapere", "a breve", "appena possibile", "nei prossimi giorni"
 - la data di invio dell'email stessa
+
+ATTENZIONE ALLA DIFFERENZA, è quella che si sbaglia più spesso:
+- "il bollo auto deve essere pagato entro il 30 settembre"  -> È un impegno (kind=scadenza).
+  Deve fare qualcosa lui, entro una data.
+- "paga la fattura entro il 15", "presenta la domanda entro il 10", "rinnova entro fine
+  mese" -> sono impegni.
+- "offerta valida fino al 30 settembre" -> NON è un impegno. Nessuno gli chiede niente.
+
+Se una scadenza obbliga LUI a fare qualcosa, è un impegno anche senza un orario preciso:
+in quel caso all_day=true.
 
 REGOLE SULLA DATA — leggile con attenzione:
 - In "date_phrase" copia ESATTAMENTE le parole dell'email che indicano quando, senza
@@ -85,8 +97,16 @@ dell'email.
 
 In "evidence" copia la frase dell'email che dimostra l'impegno.
 
-Se non c'è nessun impegno: has_commitment=false, kind="nessuno". È il caso più comune,
-non inventare nulla.
+COMPILA I CAMPI IN QUESTO ORDINE, è importante:
+1. "evidence": la frase dell'email che dimostra l'impegno, copiata alla lettera.
+2. "date_phrase": solo le parole che dicono quando.
+3. "start_iso": la tua stima, oppure vuoto.
+4. "location", "kind", "title", "all_day".
+5. "has_commitment": true solo se hai davvero trovato un impegno nei campi sopra.
+6. "confidence": quanto sei sicuro, da 0 a 1.
+
+Se non c'è nessun impegno: lascia evidence e date_phrase vuoti, has_commitment=false,
+kind="nessuno". È il caso più comune, non inventare nulla.
 
 Rispondi SOLO con il JSON richiesto."""
 

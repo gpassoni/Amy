@@ -125,27 +125,47 @@ class Classification(BaseModel):
 class Commitment(BaseModel):
     """A thing in an email that might belong on the calendar.
 
-    The date is requested twice on purpose. `date_phrase` is the literal text the model
-    saw, which donna/pipeline/dates.py re-resolves in code; `start_iso` is the model's own
-    guess, used only as a cross-check. Small models are unreliable at date arithmetic but
-    reliable at quoting the phrase in front of them.
+    **Field order here is load-bearing.** Ollama compiles the schema into a sampling grammar
+    and generates the properties in declaration order, so the order is the model's order of
+    reasoning. The first version of this class asked for `has_commitment` first, and the
+    model answered `false` while going on to fill in
+    `date_phrase="giovedì 24 settembre alle 15:00"` — it was made to commit to a verdict
+    before it had written down any evidence. Seven of seven real appointments were missed
+    that way.
+
+    Evidence now comes first, so the verdict is conditioned on tokens the model has already
+    produced. This is the structured-output equivalent of letting it show its work.
+
+    The date is also requested twice on purpose: `date_phrase` is the literal text, which
+    donna/pipeline/dates.py re-resolves in code, while `start_iso` is the model's own guess
+    used only as a cross-check. Small models are unreliable at date arithmetic and reliable
+    at quoting the phrase in front of them.
     """
 
-    has_commitment: bool
-    kind: CommitmentKind = "nessuno"
-    title: str | None = Field(default=None, max_length=120)
+    # --- evidence first: what the model actually found in the text
+    evidence: str | None = Field(
+        default=None,
+        max_length=300,
+        description="La frase dell'email che indica l'impegno, copiata alla lettera. Vuoto se non c'è.",
+    )
     date_phrase: str | None = Field(
         default=None,
         max_length=80,
-        description="Il testo esatto che indica la data, copiato dall'email",
+        description="Solo le parole che indicano quando, copiate alla lettera. Vuoto se non c'è.",
     )
-    start_iso: str | None = Field(default=None, description="La tua stima, formato YYYY-MM-DDTHH:MM")
+    start_iso: str | None = Field(
+        default=None, description="La tua stima della data, formato YYYY-MM-DDTHH:MM. Vuoto se incerto."
+    )
     location: str | None = Field(default=None, max_length=120)
+
+    # --- then the interpretation
+    kind: CommitmentKind = "nessuno"
+    title: str | None = Field(default=None, max_length=120)
     all_day: bool = False
+
+    # --- and only then the verdict, conditioned on everything above
+    has_commitment: bool = False
     confidence: Confidence = 0.0
-    # The span of source text that justifies the extraction. Shown to the user as the
-    # "why", and the single most useful field for debugging a bad proposal.
-    evidence: str | None = Field(default=None, max_length=300)
 
 
 class RouterDecision(BaseModel):

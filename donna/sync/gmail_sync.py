@@ -103,15 +103,29 @@ def sync_gmail(*, full: bool = False, limit: int | None = None) -> SyncResult:
             )
         else:
             try:
-                touched, removed, new_cursor = gmail.changed_ids_since(cursor)
+                changes = gmail.replay_history(cursor)
             except gmail.HistoryExpired as exc:
                 logger.warning("%s — falling back to a full sync", exc)
                 return sync_gmail(full=True, limit=limit)
 
-            ids = list(touched)
+            new_cursor = changes.cursor
+            result.deleted = repo.delete_emails(changes.deleted)
+
+            # Label-only changes are applied locally: no fetch, no quota. This is the bulk of
+            # the feed in normal operation, because triage labels everything it classifies.
+            relabelled = 0
+            for message_id, (added, removed) in changes.relabelled.items():
+                if repo.apply_label_delta(message_id, added, removed):
+                    relabelled += 1
+            result.updated += relabelled
+            if relabelled:
+                logger.info(
+                    "%d messaggi aggiornati solo nelle label, senza scaricarli", relabelled
+                )
+
+            ids = list(changes.added)
             if limit:
                 ids = ids[:limit]
-            result.deleted = repo.delete_emails(removed)
 
         report = gmail.fetch_messages(ids)
         for message in report.messages:

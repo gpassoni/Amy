@@ -132,6 +132,24 @@ def _strip_time(text: str) -> str:
     return re.sub(r"\s+", " ", _TIME_EXPR_RE.sub(" ", text)).strip(" ,.;:-")
 
 
+# Abbreviated month names, which real email is full of ("15 nov 2025", "3 ott"). dateparser
+# does not resolve these in Italian, so the phrase fell through to the model's own ISO guess
+# — the least trustworthy path, and the one the whole design exists to avoid relying on.
+_MONTH_ABBREV = {
+    "gen": "gennaio", "genn": "gennaio", "feb": "febbraio", "febb": "febbraio",
+    "mar": "marzo", "apr": "aprile", "mag": "maggio", "giu": "giugno",
+    "lug": "luglio", "ago": "agosto", "set": "settembre", "sett": "settembre",
+    "ott": "ottobre", "nov": "novembre", "dic": "dicembre",
+}
+_MONTH_ABBREV_RE = re.compile(
+    r"\b(" + "|".join(sorted(_MONTH_ABBREV, key=len, reverse=True)) + r")\.?\b", re.I
+)
+
+
+def _expand_months(text: str) -> str:
+    return _MONTH_ABBREV_RE.sub(lambda m: _MONTH_ABBREV[m.group(1).lower()], text)
+
+
 def _clean_for_parser(phrase: str) -> str:
     """Strip everything that is not a date, leaving a bare expression for dateparser.
 
@@ -143,6 +161,7 @@ def _clean_for_parser(phrase: str) -> str:
     text = _NEXT_RE.sub("", text)
     text = _LAST_RE.sub("", text)
     text = _strip_time(text)
+    text = _expand_months(text)
     while True:
         stripped = _LEADING_FILLER.sub("", text)
         if stripped == text:

@@ -87,6 +87,37 @@ def known_email_ids(ids: Sequence[str]) -> set[str]:
     return found
 
 
+def apply_label_delta(message_id: str, added: set[str], removed: set[str]) -> bool:
+    """Update an email's Gmail labels from a history delta, without re-fetching it.
+
+    A label change cannot alter the subject or the body, so there is nothing to download.
+    This is what stops triage's own label writes from causing the next sync to re-read the
+    whole mailbox. Returns False when the message is not mirrored, which is normal for
+    anything outside the sync window.
+    """
+    row = get_db().query_one("SELECT gmail_labels FROM emails WHERE id = ?", (message_id,))
+    if row is None:
+        return False
+
+    try:
+        labels = set(json.loads(row["gmail_labels"] or "[]"))
+    except (ValueError, TypeError):
+        labels = set()
+
+    labels |= added
+    labels -= removed
+    get_db().execute(
+        "UPDATE emails SET gmail_labels = ?, is_unread = ?, synced_at = ? WHERE id = ?",
+        (
+            json.dumps(sorted(labels)),
+            int("UNREAD" in labels),
+            iso_utc(now_utc()),
+            message_id,
+        ),
+    )
+    return True
+
+
 def delete_emails(ids: Iterable[str]) -> int:
     ids = list(ids)
     if not ids:
@@ -226,7 +257,13 @@ def replace_events_in_window(events: list[dict[str, Any]], start_iso: str, end_i
         for event in events:
             row = dict(event)
             row["synced_at"] = now
-            db.execute(upsert("events", row), list(row.values()))
+            # `source` and `origin_proposal_id` belong to the approval flow, not to Google.
+            # Without preserving them, a sync immediately after an accept relabels Donna's
+            # own event as a plain Google one and the provenance is lost.
+            db.execute(
+                upsert("events", row, preserve=("source", "origin_proposal_id")),
+                list(row.values()),
+            )
 
     return {"upserted": len(events), "deleted": len(stale)}
 
@@ -262,10 +299,55 @@ def find_similar_event(start_iso: str, end_iso: str, title: str) -> sqlite3.Row 
     return None
 
 
-def link_event_to_proposal(event_id: str, proposal_id: int) -> None:
-    get_db().execute(
-        "UPDATE events SET origin_proposal_id = ?, source = 'donna' WHERE id = ?",
-        (proposal_id, event_id),
+def record_donna_event(
+    *,
+    event_id: str,
+    proposal_id: int,
+    summary: str,
+    start_ts: str,
+    end_ts: str,
+    all_day: bool,
+    location: str | None,
+    html_link: str | None,
+) -> None:
+    """Insert an event Donna just created, with its provenance.
+
+    Called by the approval flow rather than left to the next calendar sync. The sync would
+    insert the row with source='google' and no proposal link — which is what happened the
+    first time, losing the answer to "why is this on my calendar?" within 30 seconds of
+    creating it.
+    """
+    now = iso_utc(now_utc())
+    row = {
+        "id": event_id,
+        "calendar_id": "primary",
+        "summary": summary,
+        "description": "",
+        "location": location or "",
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+        "start_raw": start_ts,
+        "end_raw": end_ts,
+        "all_day": int(all_day),
+        "status": "confirmed",
+        "organizer": "",
+        "attendees": "[]",
+        "html_link": html_link or "",
+        "recurring_event_id": None,
+        "updated_at": now,
+        "source": "donna",
+        "origin_proposal_id": proposal_id,
+        "synced_at": now,
+    }
+    get_db().execute(upsert("events", row), list(row.values()))
+
+
+def donna_events(limit: int = 50) -> list[sqlite3.Row]:
+    """Events Donna created, newest first. The provenance view."""
+    return get_db().query(
+        "SELECT * FROM events WHERE origin_proposal_id IS NOT NULL"
+        " ORDER BY start_ts DESC LIMIT ?",
+        (limit,),
     )
 
 
@@ -414,6 +496,27 @@ def resolve_proposal(
         (state, iso_utc(now_utc()), via, result_ref, proposal_id),
     )
     return cursor.rowcount > 0
+
+
+def reopen_proposal(proposal_id: int) -> bool:
+    """Put a proposal back to pending after a failed write.
+
+    `accept` claims the proposal before calling Google, so that a double tap cannot create
+    two events. When the Google call then fails, the claim has to be released or the
+    proposal is stuck in `accepted` with nothing to show for it.
+    """
+    cursor = get_db().execute(
+        "UPDATE proposals SET state = 'pending', resolved_at = NULL, resolved_via = NULL,"
+        " result_ref = NULL WHERE id = ? AND state = 'accepted' AND result_ref IS NULL",
+        (proposal_id,),
+    )
+    return cursor.rowcount > 0
+
+
+def attach_proposal_result(proposal_id: int, result_ref: str | None) -> None:
+    get_db().execute(
+        "UPDATE proposals SET result_ref = ? WHERE id = ?", (result_ref, proposal_id)
+    )
 
 
 def update_proposal_payload(proposal_id: int, payload: dict[str, Any]) -> None:

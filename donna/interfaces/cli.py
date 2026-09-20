@@ -563,6 +563,171 @@ def cmd_triage(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def cmd_extract(args: argparse.Namespace) -> int:
+    from donna.pipeline import extract
+    from donna.store import repo
+    from donna.timeutil import format_it, format_range_it, parse_iso
+
+    get_db().migrate()
+    settings = get_settings()
+    pending = repo.emails_awaiting_extraction(args.limit or settings.triage_batch_size)
+    if not pending:
+        print(f"{OK} nessuna email importante da esaminare")
+        return 0
+
+    mode = " (dry-run, nessuna proposta salvata)" if args.dry_run else ""
+    print(f"\n{BOLD}Estrazione impegni{RESET} — {len(pending)} email importanti{mode}\n")
+
+    proposed = failed = 0
+    skipped: dict[str, int] = {}
+
+    for row in pending:
+        try:
+            result = extract.extract_one(
+                sender_name=row["from_name"] or "",
+                sender_addr=row["from_addr"] or "",
+                subject=row["subject"] or "",
+                body=row["body"] or "",
+                received_at=row["received_at"],
+            )
+        except (LLMError, ValueError) as exc:
+            failed += 1
+            print(f"  {BAD} {(row['subject'] or '')[:46]:<48} {exc}")
+            continue
+
+        subject = (row["subject"] or "")[:44]
+        if not result.proposable:
+            skipped[result.skip_reason or "?"] = skipped.get(result.skip_reason or "?", 0) + 1
+            if args.verbose:
+                print(f"  {DIM}-  {subject:<46} {result.skip_reason}{RESET}")
+            if not args.dry_run:
+                repo.mark_email_extracted(row["id"], result.trace_id)
+            continue
+
+        assert result.when is not None
+        start = parse_iso(result.when.start_ts)
+        end = parse_iso(result.when.end_ts)
+        when = (
+            format_it(start, with_time=False) + " (tutto il giorno)"
+            if result.when.all_day
+            else format_range_it(start, end)
+        )
+        print(f"  {OK} {result.commitment.title or '(senza titolo)':<34} {when}")
+        print(
+            f"       {DIM}da: {subject} · conf {result.confidence:.2f} · "
+            f"data da {result.when.source}{RESET}"
+        )
+        if args.verbose and result.commitment.evidence:
+            print(f'       {DIM}"{result.commitment.evidence[:110]}"{RESET}')
+
+        if args.dry_run:
+            proposed += 1
+            continue
+
+        proposal_id = extract.propose(
+            email_id=row["id"],
+            subject=row["subject"] or "",
+            sender_name=row["from_name"] or "",
+            sender_addr=row["from_addr"] or "",
+            extraction=result,
+        )
+        repo.mark_email_extracted(row["id"], result.trace_id)
+        if proposal_id is None:
+            skipped[extract.SKIP_ALREADY_ON_CALENDAR] = (
+                skipped.get(extract.SKIP_ALREADY_ON_CALENDAR, 0) + 1
+            )
+            print(f"       {DIM}già in calendario o già proposta, salto{RESET}")
+        else:
+            proposed += 1
+            print(f"       {DIM}proposta #{proposal_id}{RESET}")
+
+    print(f"\n  {proposed} proposte")
+    for reason, count in sorted(skipped.items(), key=lambda kv: -kv[1]):
+        print(f"  {DIM}{count} scartate: {reason}{RESET}")
+    if failed:
+        print(f"  {BAD} {failed} fallite")
+    if args.dry_run:
+        print(f"  {DIM}dry-run: niente salvato{RESET}")
+    return 1 if failed else 0
+
+
+def cmd_proposals(args: argparse.Namespace) -> int:
+    from donna.pipeline import resolve
+    from donna.store import repo
+    from donna.timeutil import format_it, parse_iso
+
+    get_db().migrate()
+    rows = repo.pending_proposals(limit=args.limit)
+    if not rows:
+        print(f"{OK} nessuna proposta in attesa")
+        return 0
+
+    print(f"\n{BOLD}Proposte in attesa{RESET}  ({len(rows)})\n")
+    for row in rows:
+        created = parse_iso(row["created_at"])
+        print(f"  {BOLD}#{row['id']}{RESET}  {resolve.describe(row)}")
+        print(
+            f"       {DIM}conf {row['confidence'] or 0:.2f} · creata "
+            f"{format_it(created) if created else '?'}{RESET}"
+        )
+        if row["reasoning"]:
+            print(f"       {DIM}perché: {row['reasoning']}{RESET}")
+        if row["evidence_quote"]:
+            print(f'       {DIM}"{row["evidence_quote"][:120]}"{RESET}')
+        source = repo.get_email(row["source_id"]) if row["source_type"] == "email" else None
+        if source is not None:
+            print(f"       {DIM}da: {source['from_addr']} — {(source['subject'] or '')[:60]}{RESET}")
+        print()
+
+    print(f"  {DIM}accetta con:  python -m donna accept <id>{RESET}")
+    print(f"  {DIM}rifiuta con:  python -m donna reject <id>{RESET}")
+    return 0
+
+
+def cmd_accept(args: argparse.Namespace) -> int:
+    from donna.pipeline import resolve
+
+    get_db().migrate()
+    try:
+        result = resolve.accept(args.id, via="cli")
+    except resolve.ProposalError as exc:
+        print(f"{BAD} {exc}")
+        return 1
+    print(f"{OK} {result.state}: {result.message}")
+    if result.link:
+        print(f"{DIM}  {result.link}{RESET}")
+    return 0
+
+
+def cmd_reject(args: argparse.Namespace) -> int:
+    from donna.pipeline import resolve
+
+    get_db().migrate()
+    try:
+        result = resolve.reject(args.id, via="cli", note=args.note)
+    except resolve.ProposalError as exc:
+        print(f"{BAD} {exc}")
+        return 1
+    print(f"{OK} {result.state}: {result.message}")
+    return 0
+
+
+def cmd_seed(args: argparse.Namespace) -> int:
+    from donna.eval import seed
+
+    get_db().migrate()
+    if args.clear:
+        counts = seed.clear()
+        print(f"{OK} rimossi: {counts['emails']} email di test, {counts['proposals']} proposte")
+        return 0
+    written = seed.seed(only_commitments=args.only_commitments)
+    print(f"{OK} {written} email di test inserite nel mirror (id con prefisso 'seed:')")
+    print(f"{DIM}  ora: python -m donna triage --no-labels  &&  python -m donna extract{RESET}")
+    print(f"{DIM}  poi: python -m donna proposals{RESET}")
+    print(f"{DIM}  pulizia: python -m donna seed --clear{RESET}")
+    return 0
+
+
 def cmd_traces(args: argparse.Namespace) -> int:
     rows = get_db().query(
         "SELECT created_at, task, model, device, tokens_in, tokens_out, latency_ms, ok"
@@ -621,6 +786,36 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-labels", action="store_true", help="non applicare le label su Gmail"
     )
     triage.set_defaults(func=cmd_triage)
+
+    extract = sub.add_parser("extract", help="cerca impegni nelle email importanti")
+    extract.add_argument("-n", "--limit", type=int, default=None)
+    extract.add_argument("-v", "--verbose", action="store_true", help="mostra anche gli scarti")
+    extract.add_argument(
+        "--dry-run", action="store_true", help="mostra cosa proporrebbe senza salvare"
+    )
+    extract.set_defaults(func=cmd_extract)
+
+    proposals = sub.add_parser("proposals", help="proposte in attesa di risposta")
+    proposals.add_argument("-n", "--limit", type=int, default=20)
+    proposals.set_defaults(func=cmd_proposals)
+
+    accept = sub.add_parser("accept", help="accetta una proposta e scrivila su Google")
+    accept.add_argument("id", type=int)
+    accept.set_defaults(func=cmd_accept)
+
+    reject = sub.add_parser("reject", help="rifiuta una proposta")
+    reject.add_argument("id", type=int)
+    reject.add_argument("--note", default=None, help="perché, per il dataset di feedback")
+    reject.set_defaults(func=cmd_reject)
+
+    seed = sub.add_parser(
+        "seed", help="inserisce email di test nel mirror per provare tutto il flusso"
+    )
+    seed.add_argument("--clear", action="store_true", help="rimuove le email di test")
+    seed.add_argument(
+        "--only-commitments", action="store_true", help="solo i casi con un impegno reale"
+    )
+    seed.set_defaults(func=cmd_seed)
 
     traces = sub.add_parser("traces", help="ultime chiamate LLM registrate")
     traces.add_argument("-n", "--limit", type=int, default=20)

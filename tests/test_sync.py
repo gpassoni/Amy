@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from donna.google.gmail import FetchReport, Message
+from donna.google.gmail import FetchReport, HistoryChanges, Message
 from donna.store import repo
 from donna.store.db import Database
 from donna.sync import gmail_sync
@@ -184,11 +184,11 @@ def test_incomplete_backfill_forces_the_full_path_on_the_next_run(
 
 
 @patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.changed_ids_since")
+@patch("donna.sync.gmail_sync.gmail.replay_history")
 def test_incremental_path_used_once_backfill_is_done(changed, fetch, db: Database):
     repo.record_sync(gmail_sync.RESOURCE, cursor="500")
     repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
-    changed.return_value = ({"m9"}, set(), "600")
+    changed.return_value = HistoryChanges(added={"m9"}, cursor="600")
     fetch.return_value = FetchReport(messages=[make_message("m9")])
 
     result = gmail_sync.sync_gmail()
@@ -198,12 +198,12 @@ def test_incremental_path_used_once_backfill_is_done(changed, fetch, db: Databas
 
 
 @patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.changed_ids_since")
+@patch("donna.sync.gmail_sync.gmail.replay_history")
 def test_incremental_deletes_messages_removed_upstream(changed, fetch, db: Database):
     gmail_sync._store(make_message("m1"))
     repo.record_sync(gmail_sync.RESOURCE, cursor="500")
     repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
-    changed.return_value = (set(), {"m1"}, "600")
+    changed.return_value = HistoryChanges(deleted={"m1"}, cursor="600")
     fetch.return_value = FetchReport()
 
     result = gmail_sync.sync_gmail()
@@ -215,7 +215,7 @@ def test_incremental_deletes_messages_removed_upstream(changed, fetch, db: Datab
 @patch("donna.sync.gmail_sync.gmail.fetch_messages")
 @patch("donna.sync.gmail_sync.gmail.list_recent_ids")
 @patch("donna.sync.gmail_sync.gmail.current_history_id")
-@patch("donna.sync.gmail_sync.gmail.changed_ids_since")
+@patch("donna.sync.gmail_sync.gmail.replay_history")
 def test_expired_history_falls_back_to_a_full_sync(
     changed, history_id, list_ids, fetch, db: Database
 ):
@@ -365,3 +365,76 @@ def test_open_tasks_put_undated_ones_last(db: Database):
     )
     titles = [r["title"] for r in repo.open_tasks()]
     assert titles == ["domani", "senza data"]
+
+
+# ---------------------------------------------------------------- the label feedback loop
+def test_label_only_changes_are_applied_without_refetching(db: Database):
+    """Triage labels everything it classifies, and each label write lands in the change feed.
+
+    Treating those entries as "the message changed" made the next sync re-download the whole
+    mailbox: labelling 154 messages caused 154 re-fetches and exceeded the API quota. A label
+    change cannot alter a subject or a body, and the history entry already carries the ids.
+    """
+    gmail_sync._store(make_message("m1"))
+    repo.record_sync(gmail_sync.RESOURCE, cursor="500")
+    repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
+
+    with (
+        patch(
+            "donna.sync.gmail_sync.gmail.replay_history",
+            return_value=HistoryChanges(
+                relabelled={"m1": ({"Label_donna_1"}, {"UNREAD"})}, cursor="600"
+            ),
+        ),
+        patch("donna.sync.gmail_sync.gmail.fetch_messages") as fetch,
+    ):
+        result = gmail_sync.sync_gmail()
+
+    fetch.assert_called_once_with([])  # nothing downloaded
+    assert result.ok
+    row = repo.get_email("m1")
+    assert row["is_unread"] == 0                      # UNREAD removed
+    assert "Label_donna_1" in row["gmail_labels"]     # new label recorded
+
+
+def test_a_label_delta_for_an_unmirrored_message_is_ignored(db: Database):
+    # Normal for anything outside the sync window; must not create a partial row.
+    assert repo.apply_label_delta("unknown", {"X"}, set()) is False
+    assert db.scalar("SELECT count(*) FROM emails") == 0
+
+
+def test_label_delta_preserves_labels_it_was_not_told_about(db: Database):
+    gmail_sync._store(make_message("m1"))  # starts with INBOX, UNREAD
+    repo.apply_label_delta("m1", {"STARRED"}, set())
+    labels = repo.get_email("m1")["gmail_labels"]
+    assert "INBOX" in labels and "UNREAD" in labels and "STARRED" in labels
+
+
+def test_a_new_message_is_fetched_not_treated_as_a_relabel(db: Database):
+    repo.record_sync(gmail_sync.RESOURCE, cursor="500")
+    repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
+    with (
+        patch(
+            "donna.sync.gmail_sync.gmail.replay_history",
+            return_value=HistoryChanges(added={"m9"}, cursor="600"),
+        ),
+        patch(
+            "donna.sync.gmail_sync.gmail.fetch_messages",
+            return_value=FetchReport(messages=[make_message("m9")]),
+        ),
+    ):
+        result = gmail_sync.sync_gmail()
+    assert result.created == 1
+
+
+def test_history_drops_label_deltas_for_messages_it_also_reports_as_new():
+    # A new message is downloaded in full, so its label deltas are redundant noise.
+    changes = HistoryChanges()
+    changes.added.add("m1")
+    changes.note_labels("m1", ["INBOX"], [])
+    changes.note_labels("m2", ["STARRED"], [])
+    changes.added -= changes.deleted
+    for mid in changes.added:
+        changes.relabelled.pop(mid, None)
+    assert "m1" not in changes.relabelled
+    assert "m2" in changes.relabelled

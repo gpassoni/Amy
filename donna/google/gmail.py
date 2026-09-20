@@ -172,18 +172,40 @@ def list_recent_ids(days: int, limit: int) -> list[str]:
     return ids[:limit]
 
 
-def changed_ids_since(history_id: str) -> tuple[set[str], set[str], str]:
-    """Replay the change feed from `history_id`.
+@dataclass(slots=True)
+class HistoryChanges:
+    """What the change feed reported, split by what each change actually requires.
 
-    Returns (touched ids, deleted ids, new history cursor). Label changes count as touched
-    because they tell us a message was read or filed elsewhere, which Donna should notice.
+    The distinction between `added` and `relabelled` exists because conflating them created a
+    feedback loop: triage applies a Gmail label to every message it classifies, each label
+    write becomes a history entry, and treating those entries as "this message changed" made
+    the next sync re-download the entire mailbox. Labelling 154 messages caused 154
+    re-fetches and blew the API quota.
+
+    A label change cannot alter a subject or a body, and the history entry already carries
+    the label ids — so it needs no fetch at all.
+    """
+
+    added: set[str] = field(default_factory=set)
+    deleted: set[str] = field(default_factory=set)
+    # message id -> (labels added, labels removed)
+    relabelled: dict[str, tuple[set[str], set[str]]] = field(default_factory=dict)
+    cursor: str = ""
+
+    def note_labels(self, message_id: str, added: list[str], removed: list[str]) -> None:
+        current_added, current_removed = self.relabelled.setdefault(message_id, (set(), set()))
+        current_added.update(added)
+        current_removed.update(removed)
+
+
+def replay_history(history_id: str) -> HistoryChanges:
+    """Replay the change feed from `history_id`.
 
     Raises HistoryExpired when the cursor has aged out — Gmail keeps roughly a week of
     history, so a laptop that was off for a fortnight needs a full resync.
     """
     service = gmail_service()
-    touched: set[str] = set()
-    deleted: set[str] = set()
+    changes = HistoryChanges(cursor=history_id)
     latest = history_id
     page_token: str | None = None
 
@@ -210,19 +232,27 @@ def changed_ids_since(history_id: str) -> tuple[set[str], set[str], str]:
         for entry in response.get("history") or []:
             latest = str(entry.get("id", latest))
             for added in entry.get("messagesAdded") or []:
-                touched.add(added["message"]["id"])
+                changes.added.add(added["message"]["id"])
             for removed in entry.get("messagesDeleted") or []:
-                deleted.add(removed["message"]["id"])
-            for changed in (entry.get("labelsAdded") or []) + (entry.get("labelsRemoved") or []):
-                touched.add(changed["message"]["id"])
+                changes.deleted.add(removed["message"]["id"])
+            for item in entry.get("labelsAdded") or []:
+                changes.note_labels(item["message"]["id"], item.get("labelIds") or [], [])
+            for item in entry.get("labelsRemoved") or []:
+                changes.note_labels(item["message"]["id"], [], item.get("labelIds") or [])
 
         page_token = response.get("nextPageToken")
         if not page_token:
             latest = str(response.get("historyId", latest))
             break
 
-    touched -= deleted
-    return touched, deleted, latest
+    changes.added -= changes.deleted
+    for message_id in changes.deleted:
+        changes.relabelled.pop(message_id, None)
+    # A brand-new message is fetched in full anyway; its label deltas are redundant.
+    for message_id in changes.added:
+        changes.relabelled.pop(message_id, None)
+    changes.cursor = latest
+    return changes
 
 
 # Gmail bills messages.get at 5 quota units against a 250-unit-per-second budget, so 50
