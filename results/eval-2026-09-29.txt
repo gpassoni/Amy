@@ -1,0 +1,64 @@
+
+  triage: 14/14  (media 2942 ms)
+  ok  dentista_conferma          appuntamento_data -> importante
+       {'signal': 'appuntamento_data', 'category': 'importante', 'confidence': 0.95}
+  ok  udienza_tribunale          appuntamento_data -> importante
+       {'signal': 'appuntamento_data', 'category': 'importante', 'confidence': 1.0}
+  ok  riunione_relativa          appuntamento_data -> importante
+       {'signal': 'appuntamento_data', 'category': 'importante', 'confidence': 1.0}
+  ok  visita_medica_weekday      appuntamento_data -> importante
+       {'signal': 'appuntamento_data', 'category': 'importante', 'confidence': 1.0}
+  ok  volo_prenotazione          appuntamento_data -> importante
+       {'signal': 'appuntamento_data', 'category': 'importante', 'confidence': 1.0}
+  ok  scadenza_bollo             scadenza_pagamento -> importante
+       {'signal': 'scadenza_pagamento', 'category': 'importante', 'confidence': 1.0}
+  ok  colloquio_orario_esteso    appuntamento_data -> importante
+       {'signal': 'appuntamento_data', 'category': 'importante', 'confidence': 1.0}
+  ok  promo_scadenza_commerciale promozione -> inutile
+       {'signal': 'promozione', 'category': 'inutile', 'confidence': 1.0}
+  ok  newsletter_con_date        newsletter_scelta -> da_leggere
+       {'signal': 'newsletter_scelta', 'category': 'da_leggere', 'confidence': 0.95}
+  ok  portale_annuncio           annuncio_portale -> inutile
+       {'signal': 'annuncio_portale', 'category': 'inutile', 'confidence': 1.0}
+  ok  social_notifica            notifica_social -> inutile
+       {'signal': 'notifica_social', 'category': 'inutile', 'confidence': 1.0}
+  ok  sicurezza_accesso          sicurezza_account -> importante
+       {'signal': 'sicurezza_account', 'category': 'importante', 'confidence': 1.0}
+  ok  vago_senza_data            persona_reale -> importante
+       {'signal': 'persona_reale', 'category': 'importante', 'confidence': 1.0}
+  ok  spedizione                 spedizione -> da_leggere
+       {'signal': 'spedizione', 'category': 'da_leggere', 'confidence': 0.95}
+
+  extraction: 11/14  (media 1873 ms)
+  BAD dentista_conferma          MANCATO: l'impegno è già passato (phrase='giovedì 24 settembre alle 15:00')
+       {'has_commitment': True, 'kind': 'appuntamento', 'title': 'Igiene dentale', 'date_phrase': 'giovedì 24 settembre alle 15:00', 'confidence': 1.0, 'skip_reason': "l'impegno è già passato"}
+  ok  udienza_tribunale          2026-10-03 09:30 · Udienza Tribunale Milano
+       {'has_commitment': True, 'kind': 'appuntamento', 'title': 'Udienza Tribunale Milano', 'date_phrase': 'il 3 ottobre alle ore 9:30', 'confidence': 1.0, 'skip_reason': None, 'start': '2026-10-03 09:30', 'all_day': False, 'date_source': 'phrase'}
+  BAD riunione_relativa          MANCATO: l'impegno è già passato (phrase='domani alle 14:30')
+       {'has_commitment': True, 'kind': 'appuntamento', 'title': 'Allineamento progetto', 'date_phrase': 'domani alle 14:30', 'confidence': 1.0, 'skip_reason': "l'impegno è già passato"}
+  ok  visita_medica_weekday      2026-09-29 11:00 · Visita cardiologica
+       {'has_commitment': True, 'kind': 'appuntamento', 'title': 'Visita cardiologica', 'date_phrase': 'martedì prossimo alle 11:00', 'confidence': 0.95, 'skip_reason': None, 'start': '2026-09-29 11:00', 'all_day': False, 'date_source': 'phrase'}
+  ok  volo_prenotazione          2026-10-12 07:25 · Volo MXP-LHR
+       {'has_commitment': True, 'kind': 'viaggio', 'title': 'Volo MXP-LHR', 'date_phrase': '12 ottobre 2026, 07:25', 'confidence': 1.0, 'skip_reason': None, 'start': '2026-10-12 07:25', 'all_day': False, 'date_source': 'agreed'}
+  ok  scadenza_bollo             2026-09-30 00:00 · Pagamento bollo auto
+       {'has_commitment': True, 'kind': 'scadenza', 'title': 'Pagamento bollo auto', 'date_phrase': 'entro il 30 settembre 2026', 'confidence': 1.0, 'skip_reason': None, 'start': '2026-09-30 00:00', 'all_day': True, 'date_source': 'phrase'}
+  BAD colloquio_orario_esteso    MANCATO: l'impegno è già passato (phrase='venerdì dalle 10 alle 12')
+       {'has_commitment': True, 'kind': 'appuntamento', 'title': 'Colloquio HR', 'date_phrase': 'venerdì dalle 10 alle 12', 'confidence': 1.0, 'skip_reason': "l'impegno è già passato"}
+  ok  promo_scadenza_commerciale nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+  ok  newsletter_con_date        nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+  ok  portale_annuncio           nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+  ok  social_notifica            nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+  ok  sicurezza_accesso          nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+  ok  vago_senza_data            nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+  ok  spedizione                 nessuna proposta, corretto
+       {'has_commitment': False, 'kind': 'nessuno', 'title': '', 'date_phrase': '', 'confidence': 1.0, 'skip_reason': "nessun impegno nell'email"}
+
+  28 righe scritte in results/eval-2026-09-29.jsonl
+
+  totale: 25/28
