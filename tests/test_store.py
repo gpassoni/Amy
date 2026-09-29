@@ -9,8 +9,8 @@ import sqlite3
 
 import pytest
 
-from donna.store.db import Database, upsert
-from donna.timeutil import now_utc
+from amy.store.db import Database, upsert
+from amy.timeutil import now_utc
 
 
 def test_migrate_creates_the_expected_tables(db: Database):

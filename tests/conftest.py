@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from donna.config import get_settings
-from donna.store.db import Database, reset_db_for_tests
+from amy.config import get_settings
+from amy.store.db import Database, reset_db_for_tests
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +17,7 @@ def _fixed_timezone(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture()
 def db(tmp_path) -> Database:
-    """A migrated, throwaway database. Never touches the real donna.db."""
+    """A migrated, throwaway database. Never touches the real amy.db."""
     database = reset_db_for_tests(tmp_path / "test.db")
     database.migrate()
     return database

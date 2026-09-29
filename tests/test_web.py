@@ -15,14 +15,14 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from donna.store import activity, repo
-from donna.store.db import Database
-from donna.timeutil import iso_utc, now_local, now_utc, to_utc
+from amy.store import activity, repo
+from amy.store.db import Database
+from amy.timeutil import iso_utc, now_local, now_utc, to_utc
 
 
 @pytest.fixture()
 def client(db: Database) -> TestClient:
-    from donna.interfaces.web.app import app
+    from amy.interfaces.web.app import app
 
     return TestClient(app)
 
@@ -150,7 +150,7 @@ def test_the_live_fragment_says_so_when_idle(client: TestClient):
 # ---------------------------------------------------------------- actions
 def test_accept_creates_the_event_and_clears_the_proposal(client: TestClient, proposal: int):
     with patch(
-        "donna.pipeline.resolve.calendar.create_event",
+        "amy.pipeline.resolve.calendar.create_event",
         return_value={"id": "evt-1", "htmlLink": "https://x"},
     ) as create:
         response = client.post(f"/proposals/{proposal}/accept", follow_redirects=False)
@@ -181,7 +181,7 @@ def test_edit_records_both_versions_and_applies_the_correction(
     fine-tune can be supervised on.
     """
     with patch(
-        "donna.pipeline.resolve.calendar.create_event",
+        "amy.pipeline.resolve.calendar.create_event",
         return_value={"id": "evt-1", "htmlLink": "https://x"},
     ) as create:
         client.post(
@@ -203,7 +203,7 @@ def test_edit_records_both_versions_and_applies_the_correction(
 
 
 def test_an_edit_with_an_unparseable_date_changes_nothing(client: TestClient, proposal: int):
-    with patch("donna.pipeline.resolve.calendar.create_event") as create:
+    with patch("amy.pipeline.resolve.calendar.create_event") as create:
         client.post(
             f"/proposals/{proposal}/edit",
             data={"title": "X", "start_local": "not a date"},
@@ -225,7 +225,7 @@ def test_reclassifying_from_the_inbox_records_feedback(
         trace_id="t",
         signal="promozione",
     )
-    with patch("donna.pipeline.triage.gmail.apply_category_label", return_value=True):
+    with patch("amy.pipeline.triage.gmail.apply_category_label", return_value=True):
         client.post("/inbox/m1/reclassify", data={"category": "importante"}, follow_redirects=False)
 
     assert repo.get_email("m1")["category"] == "importante"
@@ -235,7 +235,7 @@ def test_reclassifying_from_the_inbox_records_feedback(
 
 
 def test_memory_can_be_added_and_forgotten(client: TestClient, db: Database):
-    from donna.context import memory
+    from amy.context import memory
 
     with patch.object(memory, "get_llm") as llm:
         llm.return_value.embed_one.return_value = [0.1] * 8

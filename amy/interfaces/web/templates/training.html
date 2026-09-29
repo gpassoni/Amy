@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% set page = 'training' %}
+{% block title %}Amy — dati di addestramento{% endblock %}
+
+{% block body %}
+<h1>Dati raccolti</h1>
+<p class="lede">
+  Ogni correzione diventa un esempio. Questa pagina esiste per rendere visibile se il dataset
+  sta crescendo davvero, e quale tipo manca — perché i tre tipi non valgono uguale.
+</p>
+
+<div class="panel">
+  <div class="stats">
+    <div class="stat good">
+      <div class="n">{{ by_kind.get('extraction', 0) }}</div>
+      <div class="l">correzioni complete</div>
+    </div>
+    <div class="stat">
+      <div class="n">{{ by_kind.get('triage', 0) }}</div>
+      <div class="l">riclassificazioni</div>
+    </div>
+    <div class="stat">
+      <div class="n">{{ by_kind.get('proposal', 0) }}</div>
+      <div class="l">sì / no</div>
+    </div>
+  </div>
+  <div class="hr"></div>
+  <p class="dim" style="margin:0 0 12px">
+    <strong>Correzioni complete</strong> (hai modificato una proposta e l'hai accettata) sono le
+    più preziose: contengono la risposta giusta, quindi possono supervisionare un fine-tuning.
+    <strong>Riclassificazioni</strong> insegnano il triage. <strong>Sì / no</strong> sono le più
+    numerose e le più povere: dicono se una proposta andava bene, non cosa scrivere al suo posto
+    — servono per una preferenza, non come target.
+  </p>
+  <div style="display:flex; gap:8px; flex-wrap:wrap">
+    <a class="btn" href="/training/export">Esporta tutto (JSONL)</a>
+    <a class="btn" href="/training/export?kind=extraction">Solo correzioni complete</a>
+    <a class="btn" href="/training/export?kind=triage">Solo riclassificazioni</a>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Esempi</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>tipo</th><th>prodotto</th><th>corretto in</th><th>nota</th><th>quando</th></tr>
+    </thead>
+    <tbody>
+    {% for e in examples %}
+      <tr>
+        <td class="mono">{{ e.feedback_id }}</td>
+        <td>
+          <span class="chip {{ 'ok' if e.kind == 'extraction' else ('run' if e.kind == 'triage' else '') }}">
+            {{ e.kind }}
+          </span>
+          {% if e.label %}<span class="chip">{{ e.label }}</span>{% endif %}
+        </td>
+        <td class="mono">{{ (e.produced | string)[:90] }}</td>
+        <td class="mono">{{ (e.expected | string)[:90] if e.expected else '—' }}</td>
+        <td class="dim">{{ e.note or '' }}</td>
+        <td class="mono">{{ e.created_at | ago }} fa</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">
+        Ancora nessun esempio. Accetta, scarta o correggi qualche proposta e appariranno qui.
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

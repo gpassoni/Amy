@@ -1,7 +1,7 @@
 """Telegram layer: callback encoding, cards, and the authorisation guard.
 
 The guard gets the most attention here. A bot token is a bearer credential — anyone who finds
-the bot can message it — and Donna reads a real mailbox and writes to a real calendar. A hole
+the bot can message it — and Amy reads a real mailbox and writes to a real calendar. A hole
 in `_authorised` is not a cosmetic bug.
 """
 
@@ -13,12 +13,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from donna.config import get_settings
-from donna.interfaces.telegram import cards, keyboards
-from donna.interfaces.telegram.handlers import _authorised
-from donna.store import repo, state
-from donna.store.db import Database
-from donna.timeutil import iso_utc, now_local, now_utc, to_utc
+from amy.config import get_settings
+from amy.interfaces.telegram import cards, keyboards
+from amy.interfaces.telegram.handlers import _authorised
+from amy.store import repo, state
+from amy.store.db import Database
+from amy.timeutil import iso_utc, now_local, now_utc, to_utc
 
 
 # ---------------------------------------------------------------- callback data
@@ -209,7 +209,7 @@ def _update(chat_id: int) -> object:
     return SimpleNamespace(effective_chat=SimpleNamespace(id=chat_id))
 
 
-def test_the_first_chat_binds_donna(db: Database):
+def test_the_first_chat_binds_amy(db: Database):
     assert state.get_int(state.TELEGRAM_CHAT_ID) is None
     assert _authorised(_update(555)) is True
     assert state.get_int(state.TELEGRAM_CHAT_ID) == 555
@@ -223,7 +223,7 @@ def test_a_bound_chat_stays_authorised(db: Database):
 def test_any_other_chat_is_refused(db: Database):
     """The security case: a bot token is a bearer credential.
 
-    Anyone who discovers the bot can message it, and Donna reads a real mailbox and writes to a
+    Anyone who discovers the bot can message it, and Amy reads a real mailbox and writes to a
     real calendar. Binding to one chat is what stops a stranger from driving her.
     """
     _authorised(_update(555))
@@ -247,7 +247,7 @@ def test_an_update_without_a_chat_is_refused(db: Database):
 
 # ---------------------------------------------------------------- notifier
 def test_the_notifier_does_nothing_before_a_chat_is_bound(db: Database):
-    from donna.interfaces.telegram.notifier import Notifier
+    from amy.interfaces.telegram.notifier import Notifier
 
     _proposal(db)
     notifier = Notifier(bot=MagicMock(), loop=None)  # loop unused on this path
@@ -258,7 +258,7 @@ def test_the_notifier_does_nothing_before_a_chat_is_bound(db: Database):
 
 def test_a_failed_send_leaves_the_proposal_unnotified(db: Database):
     """Otherwise a transient network error silently loses the proposal forever."""
-    from donna.interfaces.telegram import notifier as notifier_module
+    from amy.interfaces.telegram import notifier as notifier_module
 
     _proposal(db)
     state.set_value(state.TELEGRAM_CHAT_ID, "555")
@@ -273,7 +273,7 @@ def test_a_failed_send_leaves_the_proposal_unnotified(db: Database):
 
 
 def test_a_successful_send_marks_the_proposal_notified(db: Database):
-    from donna.interfaces.telegram import notifier as notifier_module
+    from amy.interfaces.telegram import notifier as notifier_module
 
     _proposal(db)
     state.set_value(state.TELEGRAM_CHAT_ID, "555")

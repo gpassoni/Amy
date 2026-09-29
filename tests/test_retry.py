@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 from googleapiclient.errors import HttpError
 
-from donna.google import retry
+from amy.google import retry
 
 
 class _Resp:

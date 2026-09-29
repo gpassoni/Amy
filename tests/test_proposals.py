@@ -13,10 +13,10 @@ from unittest.mock import patch
 import pytest
 from googleapiclient.errors import HttpError
 
-from donna.pipeline import resolve
-from donna.store import repo
-from donna.store.db import Database
-from donna.timeutil import iso_utc, now_utc
+from amy.pipeline import resolve
+from amy.store import repo
+from amy.store.db import Database
+from amy.timeutil import iso_utc, now_utc
 
 
 def make_proposal(db: Database, **overrides) -> int:
@@ -67,9 +67,7 @@ def _http_error(status: int = 500) -> HttpError:
 # ---------------------------------------------------------------- accept
 def test_accept_creates_the_event_and_closes_the_proposal(db: Database):
     proposal_id = make_proposal(db)
-    with patch(
-        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
-    ) as create:
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
         result = resolve.accept(proposal_id)
 
     create.assert_called_once()
@@ -85,26 +83,26 @@ def test_accept_records_provenance_in_the_mirror_immediately(db: Database):
     """Without this the link is lost within seconds.
 
     The first implementation left the mirror to the next calendar sync, which inserts what
-    Google reports — and Google does not report "Donna created this from proposal N". The
+    Google reports — and Google does not report "Amy created this from proposal N". The
     answer to "why is this on my calendar?" disappeared 30 seconds after creating it.
     """
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()):
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()):
         resolve.accept(proposal_id)
 
     event = db.query_one("SELECT * FROM events WHERE id = 'evt-1'")
     assert event is not None
-    assert event["source"] == "donna"
+    assert event["source"] == "amy"
     assert event["origin_proposal_id"] == proposal_id
 
 
 def test_a_later_sync_does_not_erase_that_provenance(db: Database):
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()):
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()):
         resolve.accept(proposal_id)
 
     payload = repo.proposal_payload(repo.get_proposal(proposal_id))
-    # Google reports the same event back, knowing nothing about Donna.
+    # Google reports the same event back, knowing nothing about Amy.
     repo.replace_events_in_window(
         [
             {
@@ -131,16 +129,14 @@ def test_a_later_sync_does_not_erase_that_provenance(db: Database):
     )
 
     event = db.query_one("SELECT * FROM events WHERE id = 'evt-1'")
-    assert event["source"] == "donna", "sync overwrote provenance it does not own"
+    assert event["source"] == "amy", "sync overwrote provenance it does not own"
     assert event["origin_proposal_id"] == proposal_id
 
 
 def test_accepting_twice_creates_one_event(db: Database):
     # The double-tap case: Telegram buttons are easy to press twice.
     proposal_id = make_proposal(db)
-    with patch(
-        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
-    ) as create:
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
         first = resolve.accept(proposal_id)
         second = resolve.accept(proposal_id)
 
@@ -151,7 +147,7 @@ def test_accepting_twice_creates_one_event(db: Database):
 
 def test_accept_records_feedback(db: Database):
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()):
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()):
         resolve.accept(proposal_id)
     assert repo.feedback_counts() == {"proposal_accept": 1}
 
@@ -162,7 +158,7 @@ def test_a_failed_google_write_reopens_the_proposal(db: Database):
     Otherwise it sits in `accepted` with no event to show for it, and the user cannot retry.
     """
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", side_effect=_http_error()):
+    with patch("amy.pipeline.resolve.calendar.create_event", side_effect=_http_error()):
         with pytest.raises(resolve.ProposalError):
             resolve.accept(proposal_id)
 
@@ -173,10 +169,10 @@ def test_a_failed_google_write_reopens_the_proposal(db: Database):
 
 def test_a_reopened_proposal_can_be_accepted_afterwards(db: Database):
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", side_effect=_http_error()):
+    with patch("amy.pipeline.resolve.calendar.create_event", side_effect=_http_error()):
         with pytest.raises(resolve.ProposalError):
             resolve.accept(proposal_id)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()):
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()):
         result = resolve.accept(proposal_id)
     assert result.state == "accepted"
 
@@ -188,7 +184,7 @@ def test_accept_of_an_unknown_proposal_is_an_error(db: Database):
 
 def test_a_proposal_without_a_time_window_is_refused(db: Database):
     proposal_id = make_proposal(db, payload={"start_ts": None, "end_ts": None})
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()):
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()):
         with pytest.raises(resolve.ProposalError, match="intervallo"):
             resolve.accept(proposal_id)
     # And it is released, not stranded in accepted.
@@ -198,7 +194,7 @@ def test_a_proposal_without_a_time_window_is_refused(db: Database):
 # ---------------------------------------------------------------- reject
 def test_reject_closes_the_proposal_and_writes_nothing_to_google(db: Database):
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event") as create:
+    with patch("amy.pipeline.resolve.calendar.create_event") as create:
         result = resolve.reject(proposal_id, note="non mi serve")
     create.assert_not_called()
     assert result.state == "rejected"
@@ -226,9 +222,7 @@ def test_rejecting_twice_is_harmless(db: Database):
 def test_edit_and_accept_applies_the_correction(db: Database):
     proposal_id = make_proposal(db)
     new_start = iso_utc(now_utc() + timedelta(days=3))
-    with patch(
-        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
-    ) as create:
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
         resolve.edit_and_accept(proposal_id, title="Igiene dentale", start_ts=new_start)
 
     # The corrected values are what reach Google.
@@ -238,7 +232,7 @@ def test_edit_and_accept_applies_the_correction(db: Database):
 
 def test_edit_records_both_the_original_and_the_correction(db: Database):
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()):
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()):
         resolve.edit_and_accept(proposal_id, title="Igiene dentale")
 
     row = db.query_one("SELECT * FROM feedback WHERE kind = 'proposal_edit'")
@@ -271,7 +265,7 @@ def test_an_expired_proposal_cannot_be_accepted(db: Database):
         (iso_utc(now_utc() - timedelta(days=30)), proposal_id),
     )
     resolve.expire_stale(days=7)
-    with patch("donna.pipeline.resolve.calendar.create_event") as create:
+    with patch("amy.pipeline.resolve.calendar.create_event") as create:
         result = resolve.accept(proposal_id)
     create.assert_not_called()
     assert "già gestita" in result.message
@@ -281,13 +275,11 @@ def test_an_expired_proposal_cannot_be_accepted(db: Database):
 def test_the_calendar_entry_explains_itself(db: Database):
     """Six months on, "why is this on my calendar?" should be answerable from the entry."""
     proposal_id = make_proposal(db)
-    with patch(
-        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
-    ) as create:
+    with patch("amy.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
         resolve.accept(proposal_id)
 
     description = create.call_args.kwargs["description"]
-    assert "Donna" in description
+    assert "Amy" in description
     assert "giovedì alle 15:00" in description  # the reasoning
     assert "l'appuntamento è giovedì" in description  # the evidence quote
     assert "mail.google.com" in description  # a link back to the source

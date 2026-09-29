@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% set page = 'agents' %}
+{% block title %}Amy — attività{% endblock %}
+
+{% block body %}
+{% set d = detail_of(run) %}
+<h1>{{ run.actor }} <span class="chip">{{ run.kind }}</span></h1>
+<p class="lede">{{ run.summary or '—' }}</p>
+
+<div class="panel">
+  <div class="stats">
+    <div class="stat {{ 'bad' if run.status == 'failed' else ('warn' if run.status == 'running' else 'good') }}">
+      <div class="n" style="font-size:18px">{{ run.status }}</div>
+      <div class="l">stato</div>
+    </div>
+    <div class="stat"><div class="n">{{ run.duration_ms or 0 }}</div><div class="l">ms totali</div></div>
+    <div class="stat"><div class="n">{{ traces | length }}</div><div class="l">chiamate al modello</div></div>
+    {% if d.iterations %}
+      <div class="stat"><div class="n">{{ d.iterations }}</div><div class="l">giri dell'agente</div></div>
+    {% endif %}
+  </div>
+
+  {% if run.error %}
+    <div class="hr"></div>
+    <pre style="color:var(--bad)">{{ run.error }}</pre>
+  {% endif %}
+
+  <div class="hr"></div>
+  <h2>Come ci è arrivata</h2>
+  <table>
+    <tbody>
+      {% if d.intent %}<tr><td class="mono">intento</td><td>{{ d.intent }}</td></tr>{% endif %}
+      {% if d.route_via %}
+        <tr><td class="mono">instradato da</td>
+            <td><span class="chip {{ d.route_via }}">{{ d.route_via }}</span>
+                {% if d.route_confidence %} confidenza {{ d.route_confidence }}{% endif %}
+                {% if d.route_via == 'regex' %}<span class="dim"> — nessuna chiamata al modello per instradare</span>{% endif %}
+            </td></tr>
+      {% endif %}
+      {% if d.prefetched %}
+        <tr><td class="mono">dati dal calendario</td>
+            <td>
+              {% if d.prefetched is iterable and d.prefetched is not string %}{{ d.prefetched | join(', ') }}
+              {% else %}letti dal codice{% endif %}
+              <span class="dim">— letti dal calendario reale dal codice, senza il modello, e passati come fatto: il modello deve solo formulare la risposta</span>
+              {% if d.prefetched_text %}
+                <details style="margin-top:6px">
+                  <summary class="dim" style="cursor:pointer">vedi esattamente cosa gli è stato passato</summary>
+                  <pre>{{ d.prefetched_text }}</pre>
+                </details>
+              {% endif %}
+            </td></tr>
+      {% endif %}
+      {% if d.structured_plan %}
+        <tr><td class="mono">piano</td>
+            <td>richiesta trasformata in azioni strutturate <span class="dim">— una proposta per ogni modifica, controllate dal codice</span></td></tr>
+      {% endif %}
+      {% if d.tools %}
+        <tr><td class="mono">strumenti</td>
+            <td><div class="tools">{% for t in d.tools %}<span class="chip tool">{{ t }}</span>{% endfor %}</div></td></tr>
+      {% endif %}
+      {% if run.channel %}<tr><td class="mono">canale</td><td>{{ run.channel }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</div>
+
+<h2>Chiamate al modello</h2>
+{% for t in traces %}
+  <div class="panel">
+    <div style="display:flex; justify-content:space-between; gap:12px; align-items:baseline">
+      <div>
+        <strong>{{ t.task }}</strong>
+        <span class="chip {{ t.device }}">{{ t.device }}</span>
+        <span class="mono">{{ t.model }}</span>
+      </div>
+      <div class="mono dim">
+        {{ t.tokens_in or 0 }} in / {{ t.tokens_out or 0 }} out · {{ t.latency_ms or 0 }} ms
+        {% if not t.ok %}<span class="chip fail">ko</span>{% endif %}
+      </div>
+    </div>
+    <details style="margin-top:10px">
+      <summary class="dim" style="cursor:pointer">prompt di sistema</summary>
+      <pre>{{ t.system_prompt or '(nessuno)' }}</pre>
+    </details>
+    <details style="margin-top:6px">
+      <summary class="dim" style="cursor:pointer">messaggi</summary>
+      <pre>{{ t.prompt or '(nessuno)' }}</pre>
+    </details>
+    <details style="margin-top:6px" open>
+      <summary class="dim" style="cursor:pointer">risposta</summary>
+      <pre>{{ t.output or '(vuota)' }}</pre>
+    </details>
+    {% if t.error %}<pre style="color:var(--bad)">{{ t.error }}</pre>{% endif %}
+  </div>
+{% else %}
+  <div class="panel"><div class="empty">Nessuna chiamata registrata per questa attività.</div></div>
+{% endfor %}
+
+<p><a href="/agents">← torna agli agenti</a></p>
+{% endblock %}

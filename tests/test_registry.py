@@ -1,5 +1,5 @@
 """The registry invariants exist because violating them costs seconds per call in model
-reloads — a cost that is invisible in code review and only shows up as "Donna feels slow".
+reloads — a cost that is invisible in code review and only shows up as "Amy feels slow".
 These tests are the guard rail.
 """
 
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from donna.llm import registry
+from amy.llm import registry
 
 
 def test_shipped_registry_is_consistent():
@@ -93,7 +93,7 @@ def test_interactive_tasks_get_the_longer_keep_alive():
 
 
 def test_env_override_replaces_the_model(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("DONNA_MODEL_CLASSIFY_EMAIL", "some-other:3b")
+    monkeypatch.setenv("AMY_MODEL_CLASSIFY_EMAIL", "some-other:3b")
     spec = registry.get_spec(registry.CLASSIFY_EMAIL)
     assert spec.model == "some-other:3b"
     # An unknown model still gets a usable context size rather than zero.
@@ -105,7 +105,7 @@ def test_override_that_splits_a_model_across_context_sizes_is_rejected(
 ):
     # Point one worker task at the brain model. The brain runs at 8192 and the default for
     # an unrecognised tag is 4096 — but here the tag IS recognised, so it must agree.
-    monkeypatch.setenv("DONNA_MODEL_CLASSIFY_EMAIL", "qwen3.5:2b")
+    monkeypatch.setenv("AMY_MODEL_CLASSIFY_EMAIL", "qwen3.5:2b")
     registry.assert_consistent()  # a different model at its own ctx is fine
 
     monkeypatch.setenv("OLLAMA_MAX_LOADED_MODELS", "1")

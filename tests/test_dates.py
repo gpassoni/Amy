@@ -2,7 +2,7 @@
 
 Every case below either failed or misparsed at some point during development. dateparser
 alone got 15 of these wrong or returned nothing; the normalisation layer in
-donna/pipeline/dates.py exists entirely because of them.
+amy/pipeline/dates.py exists entirely because of them.
 
 Reference for all tests: Monday 21 September 2026, 09:00 Europe/Rome.
 """
@@ -13,8 +13,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from donna.pipeline import dates
-from donna.timeutil import parse_iso, to_local
+from amy.pipeline import dates
+from amy.timeutil import parse_iso, to_local
 
 REFERENCE = datetime(2026, 9, 21, 7, 0, tzinfo=UTC)  # 09:00 local, a Monday
 
