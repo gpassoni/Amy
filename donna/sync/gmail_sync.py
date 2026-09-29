@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from googleapiclient.errors import HttpError
 
@@ -44,7 +44,7 @@ def _received_at(message: gmail.Message) -> str:
     if message.internal_date:
         try:
             epoch_ms = int(message.internal_date)
-            return iso_utc(datetime.fromtimestamp(epoch_ms / 1000, tz=timezone.utc))
+            return iso_utc(datetime.fromtimestamp(epoch_ms / 1000, tz=UTC))
         except (ValueError, OverflowError, OSError):
             logger.debug("Unusable internalDate %r on %s", message.internal_date, message.id)
 
@@ -53,7 +53,7 @@ def _received_at(message: gmail.Message) -> str:
         return iso_utc(parsed)
 
     logger.warning("No usable date on message %s; falling back to now", message.id)
-    return iso_utc(datetime.now(timezone.utc))
+    return iso_utc(datetime.now(UTC))
 
 
 def _store(message: gmail.Message) -> bool:

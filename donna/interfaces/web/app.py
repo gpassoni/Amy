@@ -36,7 +36,6 @@ from donna.store.db import get_db
 from donna.timeutil import (
     day_bounds_utc,
     format_it,
-    format_range_it,
     iso_utc,
     now_local,
     now_utc,

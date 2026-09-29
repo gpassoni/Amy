@@ -24,7 +24,7 @@ from googleapiclient.errors import HttpError
 
 from donna.google import calendar, tasks
 from donna.store import repo
-from donna.timeutil import format_it, format_range_it, parse_iso, to_local
+from donna.timeutil import format_it, format_range_it, parse_iso
 
 logger = logging.getLogger(__name__)
 

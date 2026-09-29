@@ -15,7 +15,7 @@ from donna.agents import base, fallback, prefetch
 from donna.context import builder
 from donna.store import repo
 from donna.store.db import Database
-from donna.timeutil import iso_utc, now_local, now_utc, to_utc
+from donna.timeutil import iso_utc, now_local, to_utc
 
 
 def _event(db: Database, *, days_ahead: int, hour: int, end_hour: int, summary: str) -> None:

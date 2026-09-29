@@ -6,7 +6,7 @@ its cursor — silently losing the other 38, because the change feed only moves 
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -39,7 +39,7 @@ def test_received_at_prefers_internal_date_over_the_header():
     # Gmail's own receipt time beats a sender-written header.
     msg = make_message("m1", internal_date="1789000000000", date_header="Sat, 1 Jan 2000 00:00:00 +0000")
     assert gmail_sync._received_at(msg) == iso_utc(
-        datetime.fromtimestamp(1789000000, tz=timezone.utc)
+        datetime.fromtimestamp(1789000000, tz=UTC)
     )
 
 

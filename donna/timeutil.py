@@ -11,13 +11,13 @@ Rules enforced here, because getting this wrong is the most likely source of sil
 """
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta
 from email.utils import parsedate_to_datetime
 from zoneinfo import ZoneInfo
 
 from donna.config import get_settings
 
-UTC = timezone.utc
+UTC = UTC
 
 _WEEKDAYS_IT = (
     "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica",

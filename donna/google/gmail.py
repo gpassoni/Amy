@@ -295,9 +295,9 @@ def fetch_messages(ids: list[str]) -> FetchReport:
 
         def _callback(request_id: str, response: Any, exception: Exception | None) -> None:
             if exception is not None:
-                errors[request_id] = exception
+                errors[request_id] = exception  # noqa: B023 — batch runs within this iteration
             else:
-                collected[request_id] = response
+                collected[request_id] = response  # noqa: B023
 
         batch = service.new_batch_http_request()
         for message_id in chunk:

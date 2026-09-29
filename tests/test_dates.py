@@ -8,14 +8,14 @@ Reference for all tests: Monday 21 September 2026, 09:00 Europe/Rome.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
 from donna.pipeline import dates
 from donna.timeutil import parse_iso, to_local
 
-REFERENCE = datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc)  # 09:00 local, a Monday
+REFERENCE = datetime(2026, 9, 21, 7, 0, tzinfo=UTC)  # 09:00 local, a Monday
 
 
 def resolve(phrase, model_iso=None, **kwargs):
@@ -185,6 +185,6 @@ def test_an_implausible_model_guess_is_discarded():
 def test_reference_time_anchors_relative_phrases():
     # Reprocessing an old email must yield the date it meant when it was written, not a
     # date relative to today.
-    older = datetime(2026, 3, 2, 8, 0, tzinfo=timezone.utc)  # Monday 2 March
+    older = datetime(2026, 3, 2, 8, 0, tzinfo=UTC)  # Monday 2 March
     result = dates.resolve("domani alle 10", None, older)
     assert f"{to_local(parse_iso(result.start_ts)):%Y-%m-%d %H:%M}" == "2026-03-03 10:00"

@@ -36,7 +36,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from donna.agents import calendar_actions, tools as toolkit
+from donna.agents import calendar_actions
+from donna.agents import tools as toolkit
 from donna.llm import registry
 from donna.llm.client import LLMError, get_llm
 from donna.timeutil import now_local, parse_iso

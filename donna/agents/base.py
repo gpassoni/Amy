@@ -18,7 +18,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from donna.agents import tools as toolkit
-from donna.llm import registry
 from donna.llm.client import LLMError, get_llm
 
 logger = logging.getLogger(__name__)

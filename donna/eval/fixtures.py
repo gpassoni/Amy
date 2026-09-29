@@ -16,10 +16,10 @@ resolve.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Monday 21 September 2026, 09:00 local (07:00 UTC).
-REFERENCE = datetime(2026, 9, 21, 7, 0, tzinfo=timezone.utc)
+REFERENCE = datetime(2026, 9, 21, 7, 0, tzinfo=UTC)
 
 
 @dataclass(slots=True)

@@ -46,3 +46,9 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+# E501: long lines are mostly Italian prompt text, which is kept verbatim on purpose.
+# UP046/UP047: PEP 695 generics are a style choice, not a defect.
+ignore = ["E501", "B905", "UP046", "UP047"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E741"]

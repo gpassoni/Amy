@@ -17,6 +17,5 @@ load_dotenv()
 
 from donna.app import run  # noqa: E402 — must follow load_dotenv
 
-
 if __name__ == "__main__":
     sys.exit(run())

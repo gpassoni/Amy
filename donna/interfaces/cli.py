@@ -11,8 +11,8 @@ import math
 import os
 import shutil
 import subprocess
-import time
 import sys
+import time
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -477,7 +477,7 @@ _CATEGORY_MARK = {"importante": "🔴", "da_leggere": "🟡", "inutile": "⚪"}
 
 
 def cmd_triage(args: argparse.Namespace) -> int:
-    from donna.pipeline import prompts, triage
+    from donna.pipeline import triage
     from donna.store import repo
     from donna.timeutil import format_it, parse_iso
 

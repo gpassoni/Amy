@@ -11,7 +11,7 @@ minutes, and three of them running concurrently would fight over the same CPU ru
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger

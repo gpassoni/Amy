@@ -6,7 +6,7 @@ breaks in December, or puts an event on the wrong day because it used UTC midnig
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -15,8 +15,8 @@ from donna import timeutil
 
 def test_storage_format_is_uniform_so_string_order_is_time_order():
     # The whole schema relies on this: BETWEEN on TEXT columns must work.
-    earlier = timeutil.iso_utc(datetime(2026, 9, 20, 10, 0, tzinfo=timezone.utc))
-    later = timeutil.iso_utc(datetime(2026, 9, 20, 11, 0, tzinfo=timezone.utc))
+    earlier = timeutil.iso_utc(datetime(2026, 9, 20, 10, 0, tzinfo=UTC))
+    later = timeutil.iso_utc(datetime(2026, 9, 20, 11, 0, tzinfo=UTC))
     assert earlier < later
     assert earlier.endswith("+00:00")
     assert len(earlier) == len(later)
@@ -35,7 +35,7 @@ def test_naive_datetime_in_winter_uses_cet_not_cest():
 
 def test_parse_iso_accepts_trailing_z():
     parsed = timeutil.parse_iso("2026-09-20T13:00:00Z")
-    assert parsed == datetime(2026, 9, 20, 13, 0, tzinfo=timezone.utc)
+    assert parsed == datetime(2026, 9, 20, 13, 0, tzinfo=UTC)
 
 
 def test_parse_iso_treats_bare_date_as_local_midnight():
@@ -82,26 +82,26 @@ def test_day_bounds_across_dst_change_is_still_seven_local_days():
 
 
 def test_format_it_is_italian_and_local():
-    formatted = timeutil.format_it(datetime(2026, 9, 24, 13, 0, tzinfo=timezone.utc))
+    formatted = timeutil.format_it(datetime(2026, 9, 24, 13, 0, tzinfo=UTC))
     assert formatted == "giovedì 24 settembre, 15:00"
 
 
 def test_format_it_without_time():
     assert (
-        timeutil.format_it(datetime(2026, 9, 24, 13, 0, tzinfo=timezone.utc), with_time=False)
+        timeutil.format_it(datetime(2026, 9, 24, 13, 0, tzinfo=UTC), with_time=False)
         == "giovedì 24 settembre"
     )
 
 
 def test_format_range_collapses_same_day():
-    start = datetime(2026, 9, 24, 13, 0, tzinfo=timezone.utc)
-    end = datetime(2026, 9, 24, 14, 30, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 24, 13, 0, tzinfo=UTC)
+    end = datetime(2026, 9, 24, 14, 30, tzinfo=UTC)
     assert timeutil.format_range_it(start, end) == "giovedì 24 settembre, 15:00–16:30"
 
 
 def test_format_range_spans_days():
-    start = datetime(2026, 9, 24, 13, 0, tzinfo=timezone.utc)
-    end = datetime(2026, 9, 25, 9, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 24, 13, 0, tzinfo=UTC)
+    end = datetime(2026, 9, 25, 9, 0, tzinfo=UTC)
     assert "→" in timeutil.format_range_it(start, end)
 
 

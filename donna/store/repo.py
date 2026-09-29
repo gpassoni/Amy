@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterable, Sequence
 from datetime import timedelta
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from donna.store.db import get_db, upsert
 from donna.timeutil import iso_utc, now_utc

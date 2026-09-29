@@ -18,7 +18,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from donna.eval.fixtures import REFERENCE, CASES, EmailCase
+from donna.eval.fixtures import CASES, REFERENCE, EmailCase
 from donna.llm.client import LLMError
 from donna.pipeline import extract, triage
 from donna.timeutil import iso_utc, parse_iso, to_local

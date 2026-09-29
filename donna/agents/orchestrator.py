@@ -17,10 +17,10 @@ import logging
 from dataclasses import dataclass, field
 
 from donna.agents import fallback, prefetch, roster, router
-from donna.agents.base import AgentReply, run as run_agent
+from donna.agents.base import AgentReply
+from donna.agents.base import run as run_agent
 from donna.context import builder
 from donna.store import activity, repo
-from donna.timeutil import iso_utc, now_utc
 
 logger = logging.getLogger(__name__)
 

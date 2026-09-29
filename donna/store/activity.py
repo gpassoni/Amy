@@ -20,9 +20,10 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import Any
 
 from donna.store.db import get_db
 from donna.timeutil import iso_utc, now_utc

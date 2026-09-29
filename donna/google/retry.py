@@ -16,7 +16,8 @@ import json
 import logging
 import random
 import time
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from googleapiclient.errors import HttpError
 

@@ -20,7 +20,7 @@ from datetime import timedelta
 from donna.eval.fixtures import CASES, EmailCase
 from donna.store import repo
 from donna.store.db import get_db
-from donna.timeutil import iso_utc, local_zone, now_local, now_utc
+from donna.timeutil import iso_utc, local_zone, now_local
 
 logger = logging.getLogger(__name__)
 

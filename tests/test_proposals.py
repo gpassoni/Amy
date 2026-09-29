@@ -6,6 +6,7 @@ Telegram, the web UI and the CLI, and a double tap must not produce two calendar
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +16,6 @@ from donna.pipeline import resolve
 from donna.store import repo
 from donna.store.db import Database
 from donna.timeutil import iso_utc, now_utc
-from datetime import timedelta
 
 
 def make_proposal(db: Database, **overrides) -> int:
