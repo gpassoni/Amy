@@ -1,0 +1,49 @@
+{# Polled fragment. Answers "what is Donna doing right now?" — the whole reason the activity
+   table exists. Swapped in place by htmx every two seconds. #}
+<div id="live" hx-get="/activity/live" hx-trigger="every 2s" hx-swap="outerHTML">
+  <div class="panel live {{ '' if running else 'idle' }}">
+    {% if running %}
+      <h2><span class="pulse"></span>In corso adesso</h2>
+      {% for run in running %}
+        {% set d = detail_of(run) %}
+        <div class="runline">
+          <span class="k">{{ run.kind }}</span>
+          <span class="who">{{ run.actor }}</span>
+          <span class="what">
+            {{ run.summary or '—' }}
+            {% if d.intent %}<span class="chip">{{ d.intent }}</span>{% endif %}
+          </span>
+          <span class="ms">da {{ run.started_at | ago }}</span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <h2>In attesa</h2>
+      <div class="dim">Nessun agente attivo. Il ciclo di fondo gira ogni 5 minuti.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <h2>Ultime attività</h2>
+    <div class="rows">
+      {% for run in recent_runs %}
+        {% set d = detail_of(run) %}
+        <div class="runline">
+          <span class="k">{{ run.started_at | clock }}</span>
+          <span class="who">
+            {{ run.actor }}
+            {% if run.status == 'failed' %}<span class="chip fail">ko</span>{% endif %}
+          </span>
+          <span class="what">
+            <a href="/activity/{{ run.id }}">{{ run.summary or run.kind }}</a>
+            {% if d.route_via %}<span class="chip {{ d.route_via }}">{{ d.route_via }}</span>{% endif %}
+            {% if d.prefetched %}<span class="chip tool" title="Il codice ha letto questi dati dal calendario e li ha passati al modello come fatto: {{ d.prefetched | join(', ') if d.prefetched is iterable and d.prefetched is not string else '' }}">calendario letto dal codice</span>{% endif %}
+            {% for t in d.tools or [] %}<span class="chip tool">{{ t }}</span>{% endfor %}
+          </span>
+          <span class="ms">{{ run.duration_ms or 0 }} ms</span>
+        </div>
+      {% else %}
+        <div class="empty">Ancora nessuna attività registrata.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>

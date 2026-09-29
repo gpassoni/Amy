@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% set page = 'agents' %}
+{% block title %}Donna — agenti{% endblock %}
+
+{% block body %}
+<h1>Agenti</h1>
+<p class="lede">
+  Un router scegli chi risponde, poi un solo agente risponde. Nessun supervisore, nessun agente
+  che chiama un altro agente: su hardware locale un salto in più è la differenza fra una
+  conversazione e un'attesa.
+</p>
+
+{% include "_live.html" %}
+
+<div class="panel">
+  <h2>Chi fa cosa</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>agente</th>
+        <th>intenti</th>
+        <th>modello</th>
+        <th class="num">temp</th>
+        <th>strumenti</th>
+        <th class="num">turni</th>
+        <th class="num">medio</th>
+        <th>ultimo</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for s in specs %}
+      {% set st = stats.get(s.name) %}
+      <tr>
+        <td><strong>{{ s.name }}</strong></td>
+        <td class="mono">
+          {% for intent, spec in intents.items() %}{% if spec.name == s.name %}{{ intent }}<br>{% endif %}{% endfor %}
+        </td>
+        <td class="mono">
+          {{ s.model }}
+          <span class="chip {{ s.device }}">{{ s.device }}</span>
+        </td>
+        <td class="num">{{ "%.2f"|format(s.temperature) }}</td>
+        <td>
+          <div class="tools">
+            {% for t in s.tools %}<span class="chip tool">{{ t }}</span>{% endfor %}
+            {% if not s.tools %}<span class="dim">nessuno — risponde dal contesto</span>{% endif %}
+          </div>
+        </td>
+        <td class="num">
+          {{ st.runs if st else 0 }}
+          {% if st and st.failures %}<span class="chip fail">{{ st.failures }} ko</span>{% endif %}
+        </td>
+        <td class="num">{{ (st.avg_ms | round | int) ~ ' ms' if st and st.avg_ms else '—' }}</td>
+        <td class="mono">{{ st.last_at | ago if st else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>Storico dei turni</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>quando</th><th>tipo</th><th>agente</th><th>intento</th><th>via</th>
+        <th>strumenti</th><th class="num">giri</th><th class="num">durata</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for run in recent_runs %}
+      {% set d = detail_of(run) %}
+      <tr>
+        <td class="mono">{{ run.started_at | clock }}</td>
+        <td class="mono">{{ run.kind }}</td>
+        <td><strong>{{ run.actor }}</strong>
+            {% if run.status == 'failed' %}<span class="chip fail">ko</span>
+            {% elif run.status == 'running' %}<span class="chip run">in corso</span>{% endif %}</td>
+        <td class="mono">{{ d.intent or '—' }}</td>
+        <td>{% if d.route_via %}<span class="chip {{ d.route_via }}">{{ d.route_via }}</span>{% endif %}</td>
+        <td>
+          <div class="tools">
+            {% for t in d.tools or [] %}<span class="chip tool">{{ t }}</span>{% endfor %}
+            {% if d.prefetched %}<span class="chip tool" title="Il codice ha letto questi dati dal calendario e li ha passati al modello come fatto: {{ d.prefetched | join(', ') if d.prefetched is iterable and d.prefetched is not string else '' }}">calendario letto dal codice</span>{% endif %}
+          </div>
+        </td>
+        <td class="num">{{ d.iterations or '—' }}</td>
+        <td class="num">{{ run.duration_ms or 0 }} ms</td>
+        <td><a href="/activity/{{ run.id }}">dettaglio</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="empty">Nessun turno ancora.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

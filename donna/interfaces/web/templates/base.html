@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Donna{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <!-- htmx only, for polling the live strip and swapping fragments. No build step. -->
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <span class="brand">Donna</span>
+  <nav class="top">
+    <a href="/"          class="{{ 'on' if page == 'dashboard' }}">Quadro</a>
+    <a href="/agents"    class="{{ 'on' if page == 'agents' }}">Agenti</a>
+    <a href="/proposals" class="{{ 'on' if page == 'proposals' }}">Proposte{% if pending_count %}<span class="badge">{{ pending_count }}</span>{% endif %}</a>
+    <a href="/inbox"     class="{{ 'on' if page == 'inbox' }}">Posta</a>
+    <a href="/chat"      class="{{ 'on' if page == 'chat' }}">Chat</a>
+    <a href="/memory"    class="{{ 'on' if page == 'memory' }}">Memoria</a>
+    <a href="/training"  class="{{ 'on' if page == 'training' }}">Dati</a>
+    <a href="/traces"    class="{{ 'on' if page == 'traces' }}">Trace</a>
+  </nav>
+  <span class="clock">{{ nav_now }}</span>
+</header>
+
+<main>
+  {% block body %}{% endblock %}
+</main>
+</body>
+</html>
