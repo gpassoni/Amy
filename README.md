@@ -103,8 +103,8 @@ Calendar and Tasks APIs enabled (and an OAuth **Desktop** client saved as `crede
 the project root), and a Telegram bot token from [@BotFather](https://t.me/BotFather).
 
 ```bash
-git clone https://github.com/gpassoni/Donna.git
-cd Donna
+git clone https://github.com/gpassoni/Amy.git
+cd Amy
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
