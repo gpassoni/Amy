@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "donna"
+version = "2.0.0"
+description = "Local-first personal assistant: Gmail triage and calendar proposals with on-device LLMs."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.9",
+    "pydantic-settings>=2.5",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "google-api-python-client>=2.100",
+    "google-auth>=2.20",
+    "google-auth-oauthlib>=1.0",
+    "beautifulsoup4>=4.12",
+    "dateparser>=1.2",
+    "apscheduler>=3.10,<4",
+    "python-telegram-bot>=21",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "tzdata; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["donna*"]
+
+[tool.setuptools.package-data]
+donna = ["store/migrations/*.sql", "interfaces/web/templates/*.html", "interfaces/web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]

@@ -19,6 +19,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .pytest_cache/
+.ruff_cache/
 *.egg-info/
 dist/
 build/
@@ -32,3 +33,7 @@ env/
 .idea/
 .vscode/
 *.swp
+
+# OS
+.DS_Store
+Thumbs.db
