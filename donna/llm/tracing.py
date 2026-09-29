@@ -8,6 +8,7 @@ after the fact. Proposals and emails store a trace_id pointing here.
 Tracing never breaks a call: if the database write fails, the failure is logged and the
 call proceeds.
 """
+
 from __future__ import annotations
 
 import json

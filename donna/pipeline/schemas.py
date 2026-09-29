@@ -9,6 +9,7 @@ discouraged: during Phase 0 a free-form `str` field with a helpful description s
 Keep them small. Each additional field is tokens the model has to generate before it can
 stop, and on a CPU-hosted 2B that is real latency.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Literal
@@ -49,18 +50,18 @@ CommitmentKind = Literal["appuntamento", "scadenza", "evento", "viaggio", "nessu
 # what that means for the user is a policy, and policy belongs in code where it is
 # readable, testable and adjustable without re-prompting.
 Signal = Literal[
-    "persona_reale",            # a human wrote to him
-    "appuntamento_data",        # a real appointment, summons or booking with a date
-    "scadenza_pagamento",       # bill, due date, reminder, renewal charge
-    "sicurezza_account",        # genuine security alert
-    "ricevuta_ordine",          # receipt, order confirmation
-    "ente_istituzione",         # school, bank, doctor, public administration, employer
-    "newsletter_scelta",        # a newsletter he opted into
-    "aggiornamento_servizio",   # service notice about something already active
-    "spedizione",               # shipping update
-    "promozione",               # marketing, discount, offer
-    "notifica_social",          # "X commented", "3 new views"
-    "annuncio_portale",         # automated listing alerts (property, e-commerce, games)
+    "persona_reale",  # a human wrote to him
+    "appuntamento_data",  # a real appointment, summons or booking with a date
+    "scadenza_pagamento",  # bill, due date, reminder, renewal charge
+    "sicurezza_account",  # genuine security alert
+    "ricevuta_ordine",  # receipt, order confirmation
+    "ente_istituzione",  # school, bank, doctor, public administration, employer
+    "newsletter_scelta",  # a newsletter he opted into
+    "aggiornamento_servizio",  # service notice about something already active
+    "spedizione",  # shipping update
+    "promozione",  # marketing, discount, offer
+    "notifica_social",  # "X commented", "3 new views"
+    "annuncio_portale",  # automated listing alerts (property, e-commerce, games)
     "registrazione_benvenuto",  # welcome / thanks-for-signing-up
     "spam_phishing",
 ]
@@ -154,7 +155,8 @@ class Commitment(BaseModel):
         description="Solo le parole che indicano quando, copiate alla lettera. Vuoto se non c'è.",
     )
     start_iso: str | None = Field(
-        default=None, description="La tua stima della data, formato YYYY-MM-DDTHH:MM. Vuoto se incerto."
+        default=None,
+        description="La tua stima della data, formato YYYY-MM-DDTHH:MM. Vuoto se incerto.",
     )
     location: str | None = Field(default=None, max_length=120)
 

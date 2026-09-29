@@ -6,6 +6,7 @@ donna/pipeline/dates.py exists entirely because of them.
 
 Reference for all tests: Monday 21 September 2026, 09:00 Europe/Rome.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

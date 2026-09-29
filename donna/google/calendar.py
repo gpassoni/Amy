@@ -11,6 +11,7 @@ window is small enough to fetch cheaply and re-listing it means the part of the 
 Donna actually reasons over is always exactly right, including deletions, with no cursor to
 corrupt and no divergence to detect. Anything outside the horizon is irrelevant to her.
 """
+
 from __future__ import annotations
 
 import logging
@@ -198,9 +199,7 @@ def update_event(
     if end_iso is not None:
         event["end"] = {"dateTime": end_iso, "timeZone": settings.calendar_timezone}
 
-    updated = (
-        service.events().update(calendarId="primary", eventId=event_id, body=event).execute()
-    )
+    updated = service.events().update(calendarId="primary", eventId=event_id, body=event).execute()
     logger.info("Updated calendar event %s", event_id)
     return updated
 

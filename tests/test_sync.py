@@ -4,6 +4,7 @@ These tests exist because of bugs that actually happened during Phase 1 against 
 mailbox: a rate-limited backfill stored 116 of 154 messages, reported success, and advanced
 its cursor — silently losing the other 38, because the change feed only moves forward.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -18,7 +19,9 @@ from donna.sync import gmail_sync
 from donna.timeutil import iso_utc
 
 
-def make_message(msg_id: str, *, internal_date: str = "1789000000000", date_header: str = "") -> Message:
+def make_message(
+    msg_id: str, *, internal_date: str = "1789000000000", date_header: str = ""
+) -> Message:
     return Message(
         id=msg_id,
         thread_id=f"t{msg_id}",
@@ -37,10 +40,10 @@ def make_message(msg_id: str, *, internal_date: str = "1789000000000", date_head
 # ---------------------------------------------------------------- timestamps
 def test_received_at_prefers_internal_date_over_the_header():
     # Gmail's own receipt time beats a sender-written header.
-    msg = make_message("m1", internal_date="1789000000000", date_header="Sat, 1 Jan 2000 00:00:00 +0000")
-    assert gmail_sync._received_at(msg) == iso_utc(
-        datetime.fromtimestamp(1789000000, tz=UTC)
+    msg = make_message(
+        "m1", internal_date="1789000000000", date_header="Sat, 1 Jan 2000 00:00:00 +0000"
     )
+    assert gmail_sync._received_at(msg) == iso_utc(datetime.fromtimestamp(1789000000, tz=UTC))
 
 
 def test_received_at_falls_back_to_the_header():
@@ -49,7 +52,9 @@ def test_received_at_falls_back_to_the_header():
 
 
 def test_received_at_falls_back_to_the_header_when_internal_date_is_garbage():
-    msg = make_message("m1", internal_date="not-a-number", date_header="Sat, 20 Sep 2026 15:30:00 +0200")
+    msg = make_message(
+        "m1", internal_date="not-a-number", date_header="Sat, 20 Sep 2026 15:30:00 +0200"
+    )
     assert gmail_sync._received_at(msg) == "2026-09-20T13:30:00+00:00"
 
 
@@ -67,8 +72,13 @@ def test_resyncing_a_message_does_not_discard_its_classification(db: Database):
     assert gmail_sync._store(msg) is True
 
     repo.set_email_category(
-        "m1", category="importante", confidence=0.9, reason="perché sì",
-        model="qwen3.5:2b", trace_id="t1", label_applied=True,
+        "m1",
+        category="importante",
+        confidence=0.9,
+        reason="perché sì",
+        model="qwen3.5:2b",
+        trace_id="t1",
+        label_applied=True,
     )
 
     assert gmail_sync._store(msg) is False  # second time is an update, not an insert
@@ -108,9 +118,7 @@ def test_known_email_ids_on_empty_input(db: Database):
 @patch("donna.sync.gmail_sync.gmail.fetch_messages")
 @patch("donna.sync.gmail_sync.gmail.list_recent_ids")
 @patch("donna.sync.gmail_sync.gmail.current_history_id")
-def test_partial_backfill_does_not_advance_the_cursor(
-    history_id, list_ids, fetch, db: Database
-):
+def test_partial_backfill_does_not_advance_the_cursor(history_id, list_ids, fetch, db: Database):
     history_id.return_value = "999"
     list_ids.return_value = ["m1", "m2", "m3"]
     # Two fetched, one rate-limited away.
@@ -256,7 +264,7 @@ def test_record_sync_keeps_the_cursor_when_an_error_is_recorded(db: Database):
     repo.record_sync("gmail", cursor="100")
     repo.record_sync("gmail", error="boom")
     row = db.query_one("SELECT * FROM sync_state WHERE resource='gmail'")
-    assert row["cursor"] == "100"       # not wiped by the failure
+    assert row["cursor"] == "100"  # not wiped by the failure
     assert row["last_error"] == "boom"
     assert row["last_success_at"] is not None  # the earlier success is remembered
 
@@ -300,7 +308,10 @@ def _event_row(event_id: str, start_ts: str, summary: str = "Riunione") -> dict:
 def test_horizon_reconcile_removes_events_deleted_upstream(db: Database):
     window = ("2026-09-01T00:00:00+00:00", "2026-10-01T00:00:00+00:00")
     repo.replace_events_in_window(
-        [_event_row("e1", "2026-09-10T08:00:00+00:00"), _event_row("e2", "2026-09-11T08:00:00+00:00")],
+        [
+            _event_row("e1", "2026-09-10T08:00:00+00:00"),
+            _event_row("e2", "2026-09-11T08:00:00+00:00"),
+        ],
         *window,
     )
     assert db.scalar("SELECT count(*) FROM events") == 2
@@ -355,12 +366,28 @@ def test_find_similar_event_rejects_an_unrelated_title(db: Database):
 def test_open_tasks_put_undated_ones_last(db: Database):
     repo.replace_all_tasks(
         [
-            {"id": "t1", "tasklist_id": "@default", "title": "senza data", "notes": "",
-             "due_ts": None, "status": "needsAction", "completed_at": None,
-             "updated_at": None, "position": "1"},
-            {"id": "t2", "tasklist_id": "@default", "title": "domani", "notes": "",
-             "due_ts": "2026-09-21T00:00:00+00:00", "status": "needsAction",
-             "completed_at": None, "updated_at": None, "position": "2"},
+            {
+                "id": "t1",
+                "tasklist_id": "@default",
+                "title": "senza data",
+                "notes": "",
+                "due_ts": None,
+                "status": "needsAction",
+                "completed_at": None,
+                "updated_at": None,
+                "position": "1",
+            },
+            {
+                "id": "t2",
+                "tasklist_id": "@default",
+                "title": "domani",
+                "notes": "",
+                "due_ts": "2026-09-21T00:00:00+00:00",
+                "status": "needsAction",
+                "completed_at": None,
+                "updated_at": None,
+                "position": "2",
+            },
         ]
     )
     titles = [r["title"] for r in repo.open_tasks()]
@@ -393,8 +420,8 @@ def test_label_only_changes_are_applied_without_refetching(db: Database):
     fetch.assert_called_once_with([])  # nothing downloaded
     assert result.ok
     row = repo.get_email("m1")
-    assert row["is_unread"] == 0                      # UNREAD removed
-    assert "Label_donna_1" in row["gmail_labels"]     # new label recorded
+    assert row["is_unread"] == 0  # UNREAD removed
+    assert "Label_donna_1" in row["gmail_labels"]  # new label recorded
 
 
 def test_a_label_delta_for_an_unmirrored_message_is_ignored(db: Database):

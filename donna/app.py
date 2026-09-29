@@ -12,6 +12,7 @@ Threading model, because it is the only genuinely tricky part:
 The pipeline cycle deliberately runs after the loop exists, so the notifier has a loop to
 hand proposals to.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,9 +52,7 @@ def _start_web() -> None:
         uvicorn.Server(config).run()
 
     threading.Thread(target=serve, name="donna-web", daemon=True).start()
-    logger.info(
-        "Dashboard su http://%s:%d", settings.web_host, settings.web_port
-    )
+    logger.info("Dashboard su http://%s:%d", settings.web_host, settings.web_port)
 
 
 def run() -> int:
@@ -109,9 +108,7 @@ def run() -> int:
 
         scheduler = build_scheduler(cycle_job=cycle_then_notify)
         scheduler.start()
-        logger.info(
-            "Scheduler avviato: ciclo ogni %d minuti", settings.sync_interval_minutes
-        )
+        logger.info("Scheduler avviato: ciclo ogni %d minuti", settings.sync_interval_minutes)
 
         _start_web()
 

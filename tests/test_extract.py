@@ -4,6 +4,7 @@ What is tested here is the judgement *around* the model call — whether to prop
 because that is where the bugs were. The model's own accuracy is measured by the eval
 harness (`python -m donna.eval.cli run`), which needs a real model and is too slow for here.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -130,18 +131,24 @@ def test_a_commitment_still_ahead_is_not_skipped_as_past(db: Database):
 # ---------------------------------------------------------------- confidence
 def test_agreement_between_phrase_and_model_raises_confidence():
     when = ResolvedWhen("x", "y", False, source="agreed", agreed=True)
-    assert extract._effective_confidence(make_commitment(confidence=0.8), when) == pytest.approx(0.9)
+    assert extract._effective_confidence(make_commitment(confidence=0.8), when) == pytest.approx(
+        0.9
+    )
 
 
 def test_a_model_only_date_is_penalised():
     # No phrase to verify against is the configuration most likely to be hallucinated.
     when = ResolvedWhen("x", "y", False, source="model", agreed=False)
-    assert extract._effective_confidence(make_commitment(confidence=0.8), when) == pytest.approx(0.56)
+    assert extract._effective_confidence(make_commitment(confidence=0.8), when) == pytest.approx(
+        0.56
+    )
 
 
 def test_a_phrase_derived_date_is_taken_at_face_value():
     when = ResolvedWhen("x", "y", False, source="phrase", agreed=False)
-    assert extract._effective_confidence(make_commitment(confidence=0.8), when) == pytest.approx(0.8)
+    assert extract._effective_confidence(make_commitment(confidence=0.8), when) == pytest.approx(
+        0.8
+    )
 
 
 def test_low_confidence_does_not_reach_the_user(db: Database, monkeypatch):
@@ -162,8 +169,11 @@ def _proposable(db: Database, **kwargs):
 def test_propose_creates_a_row_with_its_reasoning_and_evidence(db: Database):
     result = _proposable(db)
     proposal_id = extract.propose(
-        email_id="m1", subject="Conferma", sender_name="Studio",
-        sender_addr="studio@example.it", extraction=result,
+        email_id="m1",
+        subject="Conferma",
+        sender_name="Studio",
+        sender_addr="studio@example.it",
+        extraction=result,
     )
     assert proposal_id is not None
     row = repo.get_proposal(proposal_id)
@@ -179,11 +189,17 @@ def test_propose_creates_a_row_with_its_reasoning_and_evidence(db: Database):
 def test_the_same_email_cannot_produce_two_proposals(db: Database):
     result = _proposable(db)
     first = extract.propose(
-        email_id="m1", subject="Conferma", sender_name="S", sender_addr="s@x.it",
+        email_id="m1",
+        subject="Conferma",
+        sender_name="S",
+        sender_addr="s@x.it",
         extraction=result,
     )
     second = extract.propose(
-        email_id="m1", subject="Conferma", sender_name="S", sender_addr="s@x.it",
+        email_id="m1",
+        subject="Conferma",
+        sender_name="S",
+        sender_addr="s@x.it",
         extraction=result,
     )
     assert first is not None
@@ -197,22 +213,38 @@ def test_nothing_is_proposed_when_the_event_is_already_on_the_calendar(db: Datab
     repo.replace_events_in_window(
         [
             {
-                "id": "e1", "calendar_id": "primary", "summary": "Dentista igiene",
-                "description": "", "location": "", "start_ts": result.when.start_ts,
-                "end_ts": result.when.end_ts, "start_raw": result.when.start_ts,
-                "end_raw": result.when.end_ts, "all_day": 0, "status": "confirmed",
-                "organizer": "", "attendees": "[]", "html_link": "",
-                "recurring_event_id": None, "updated_at": None,
+                "id": "e1",
+                "calendar_id": "primary",
+                "summary": "Dentista igiene",
+                "description": "",
+                "location": "",
+                "start_ts": result.when.start_ts,
+                "end_ts": result.when.end_ts,
+                "start_raw": result.when.start_ts,
+                "end_raw": result.when.end_ts,
+                "all_day": 0,
+                "status": "confirmed",
+                "organizer": "",
+                "attendees": "[]",
+                "html_link": "",
+                "recurring_event_id": None,
+                "updated_at": None,
             }
         ],
         result.when.start_ts,
         result.when.end_ts,
     )
 
-    assert extract.propose(
-        email_id="m1", subject="Conferma", sender_name="S", sender_addr="s@x.it",
-        extraction=result,
-    ) is None
+    assert (
+        extract.propose(
+            email_id="m1",
+            subject="Conferma",
+            sender_name="S",
+            sender_addr="s@x.it",
+            extraction=result,
+        )
+        is None
+    )
 
 
 def test_an_unrelated_event_at_the_same_time_does_not_block_a_proposal(db: Database):
@@ -221,28 +253,47 @@ def test_an_unrelated_event_at_the_same_time_does_not_block_a_proposal(db: Datab
     repo.replace_events_in_window(
         [
             {
-                "id": "e1", "calendar_id": "primary", "summary": "Partita di calcio",
-                "description": "", "location": "", "start_ts": result.when.start_ts,
-                "end_ts": result.when.end_ts, "start_raw": result.when.start_ts,
-                "end_raw": result.when.end_ts, "all_day": 0, "status": "confirmed",
-                "organizer": "", "attendees": "[]", "html_link": "",
-                "recurring_event_id": None, "updated_at": None,
+                "id": "e1",
+                "calendar_id": "primary",
+                "summary": "Partita di calcio",
+                "description": "",
+                "location": "",
+                "start_ts": result.when.start_ts,
+                "end_ts": result.when.end_ts,
+                "start_raw": result.when.start_ts,
+                "end_raw": result.when.end_ts,
+                "all_day": 0,
+                "status": "confirmed",
+                "organizer": "",
+                "attendees": "[]",
+                "html_link": "",
+                "recurring_event_id": None,
+                "updated_at": None,
             }
         ],
         result.when.start_ts,
         result.when.end_ts,
     )
-    assert extract.propose(
-        email_id="m1", subject="Conferma", sender_name="S", sender_addr="s@x.it",
-        extraction=result,
-    ) is not None
+    assert (
+        extract.propose(
+            email_id="m1",
+            subject="Conferma",
+            sender_name="S",
+            sender_addr="s@x.it",
+            extraction=result,
+        )
+        is not None
+    )
 
 
 def test_a_missing_title_falls_back_to_the_subject(db: Database):
     result = _proposable(db, title=None)
     proposal_id = extract.propose(
-        email_id="m1", subject="Conferma appuntamento", sender_name="S",
-        sender_addr="s@x.it", extraction=result,
+        email_id="m1",
+        subject="Conferma appuntamento",
+        sender_name="S",
+        sender_addr="s@x.it",
+        extraction=result,
     )
     payload = repo.proposal_payload(repo.get_proposal(proposal_id))
     assert payload["title"] == "Conferma appuntamento"
@@ -251,8 +302,11 @@ def test_a_missing_title_falls_back_to_the_subject(db: Database):
 def test_reasoning_names_the_sender_and_the_phrase(db: Database):
     result = _proposable(db)
     proposal_id = extract.propose(
-        email_id="m1", subject="x", sender_name="Studio Bianchi",
-        sender_addr="s@x.it", extraction=result,
+        email_id="m1",
+        subject="x",
+        sender_name="Studio Bianchi",
+        sender_addr="s@x.it",
+        extraction=result,
     )
     reasoning = repo.get_proposal(proposal_id)["reasoning"]
     # Assembled from known facts, never generated — so it cannot describe a different email.

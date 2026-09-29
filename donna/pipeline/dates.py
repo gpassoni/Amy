@@ -10,6 +10,7 @@ email's own receipt time, and treats the model's guess only as a cross-check.
 
 When the two agree, confidence goes up. When they disagree, the code wins.
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,12 +75,26 @@ class ResolvedWhen:
 # extracts, the code decides.
 
 _WEEKDAYS_IT = {
-    "lunedì": 0, "lunedi": 0, "martedì": 1, "martedi": 1, "mercoledì": 2, "mercoledi": 2,
-    "giovedì": 3, "giovedi": 3, "venerdì": 4, "venerdi": 4, "sabato": 5, "domenica": 6,
+    "lunedì": 0,
+    "lunedi": 0,
+    "martedì": 1,
+    "martedi": 1,
+    "mercoledì": 2,
+    "mercoledi": 2,
+    "giovedì": 3,
+    "giovedi": 3,
+    "venerdì": 4,
+    "venerdi": 4,
+    "sabato": 5,
+    "domenica": 6,
 }
 _RELATIVE_DAYS = {
-    "oggi": 0, "stasera": 0, "stamattina": 0, "stamane": 0,
-    "domani": 1, "domattina": 1,
+    "oggi": 0,
+    "stasera": 0,
+    "stamattina": 0,
+    "stamane": 0,
+    "domani": 1,
+    "domattina": 1,
     "dopodomani": 2,
     "ieri": -1,
 }
@@ -88,10 +103,17 @@ _LEADING_FILLER = re.compile(
     r"^\s*(?:in\s+data|entro\s+il|entro|il|lo|la|l'|nel|nella|del|dello|della|di|a|per|su)\s+",
     re.I,
 )
-_TRAILING_DURATION = re.compile(r"\s*\b(?:per|di)\s+(?:un|una|due|tre|quattro|\d{1,2})\s*(?:or[ae]|minut[oi])\b.*$", re.I)
-_ALL_DAY_PREFIX = re.compile(r"^\s*(?:tutto il giorno|per tutta la giornata|giornata intera)\s*(?:di|del|dello|della)?\s*", re.I)
+_TRAILING_DURATION = re.compile(
+    r"\s*\b(?:per|di)\s+(?:un|una|due|tre|quattro|\d{1,2})\s*(?:or[ae]|minut[oi])\b.*$", re.I
+)
+_ALL_DAY_PREFIX = re.compile(
+    r"^\s*(?:tutto il giorno|per tutta la giornata|giornata intera)\s*(?:di|del|dello|della)?\s*",
+    re.I,
+)
 _TIME_RE = re.compile(r"\b(?:alle|ore|h|at)?\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:alle|-)?", re.I)
-_EXPLICIT_TIME_RE = re.compile(r"\b(?:alle|ore|h)\s*(\d{1,2})(?:[:.](\d{2}))?|\b(\d{1,2})[:.](\d{2})\b", re.I)
+_EXPLICIT_TIME_RE = re.compile(
+    r"\b(?:alle|ore|h)\s*(\d{1,2})(?:[:.](\d{2}))?|\b(\d{1,2})[:.](\d{2})\b", re.I
+)
 _NEXT_RE = re.compile(r"\b(prossim[oa]|che viene|venturo)\b", re.I)
 _LAST_RE = re.compile(r"\b(scors[oa]|passat[oa])\b", re.I)
 
@@ -136,10 +158,21 @@ def _strip_time(text: str) -> str:
 # does not resolve these in Italian, so the phrase fell through to the model's own ISO guess
 # — the least trustworthy path, and the one the whole design exists to avoid relying on.
 _MONTH_ABBREV = {
-    "gen": "gennaio", "genn": "gennaio", "feb": "febbraio", "febb": "febbraio",
-    "mar": "marzo", "apr": "aprile", "mag": "maggio", "giu": "giugno",
-    "lug": "luglio", "ago": "agosto", "set": "settembre", "sett": "settembre",
-    "ott": "ottobre", "nov": "novembre", "dic": "dicembre",
+    "gen": "gennaio",
+    "genn": "gennaio",
+    "feb": "febbraio",
+    "febb": "febbraio",
+    "mar": "marzo",
+    "apr": "aprile",
+    "mag": "maggio",
+    "giu": "giugno",
+    "lug": "luglio",
+    "ago": "agosto",
+    "set": "settembre",
+    "sett": "settembre",
+    "ott": "ottobre",
+    "nov": "novembre",
+    "dic": "dicembre",
 }
 _MONTH_ABBREV_RE = re.compile(
     r"\b(" + "|".join(sorted(_MONTH_ABBREV, key=len, reverse=True)) + r")\.?\b", re.I

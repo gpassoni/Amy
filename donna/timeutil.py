@@ -9,6 +9,7 @@ Rules enforced here, because getting this wrong is the most likely source of sil
   * Date arithmetic is done here in code. Models are never asked to compute a date —
     they extract the phrase, we resolve it.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta
@@ -20,11 +21,27 @@ from donna.config import get_settings
 UTC = UTC
 
 _WEEKDAYS_IT = (
-    "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica",
+    "lunedì",
+    "martedì",
+    "mercoledì",
+    "giovedì",
+    "venerdì",
+    "sabato",
+    "domenica",
 )
 _MONTHS_IT = (
-    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
-    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+    "gennaio",
+    "febbraio",
+    "marzo",
+    "aprile",
+    "maggio",
+    "giugno",
+    "luglio",
+    "agosto",
+    "settembre",
+    "ottobre",
+    "novembre",
+    "dicembre",
 )
 
 

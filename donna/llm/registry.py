@@ -16,6 +16,7 @@ to the CPU with num_gpu=0, where a 2B emitting 40 tokens of JSON costs ~1.4 s on
 12700K. No VRAM contention, and crucially no model swapping: Ollama would otherwise
 evict the 9b every time a background job ran, costing ~30 s to reload it.
 """
+
 from __future__ import annotations
 
 import os
@@ -107,8 +108,8 @@ _EMBED_MODEL = "mxbai-embed-large"
 #
 # So: one entry per model, and assert_consistent() refuses to let this drift.
 _MODEL_CTX: dict[str, int] = {
-    _WORKER_MODEL: 8192,   # sized for the longest worker input (a full email thread)
-    _BRAIN_MODEL: 8192,    # KV cache at 8k costs ~84 MiB of VRAM; not the lever to pull
+    _WORKER_MODEL: 8192,  # sized for the longest worker input (a full email thread)
+    _BRAIN_MODEL: 8192,  # KV cache at 8k costs ~84 MiB of VRAM; not the lever to pull
     _EMBED_MODEL: 512,
 }
 
@@ -120,9 +121,7 @@ _SPECS: dict[str, ModelSpec] = {
     EXTRACT_COMMITMENT: ModelSpec(EXTRACT_COMMITMENT, _BRAIN_MODEL, "gpu", num_predict=400),
     # Retained as a distinct task so an escalation path stays available (and so the eval
     # harness can score a second configuration), but it is the same base model today.
-    EXTRACT_COMMITMENT_BIG: ModelSpec(
-        EXTRACT_COMMITMENT_BIG, _BRAIN_MODEL, "gpu", num_predict=400
-    ),
+    EXTRACT_COMMITMENT_BIG: ModelSpec(EXTRACT_COMMITMENT_BIG, _BRAIN_MODEL, "gpu", num_predict=400),
     SUMMARIZE: ModelSpec(SUMMARIZE, _BRAIN_MODEL, "gpu", temperature=0.2),
     EXTRACT_FACTS: ModelSpec(EXTRACT_FACTS, _BRAIN_MODEL, "gpu", num_predict=400),
     CHAT: ModelSpec(CHAT, _BRAIN_MODEL, "gpu", temperature=0.45),
@@ -163,7 +162,9 @@ def get_spec(task: str) -> ModelSpec:
         settings = get_settings()
         spec = replace(
             spec,
-            keep_alive=settings.chat_keep_alive if task in _INTERACTIVE else settings.worker_keep_alive,
+            keep_alive=settings.chat_keep_alive
+            if task in _INTERACTIVE
+            else settings.worker_keep_alive,
         )
     return spec
 
@@ -188,7 +189,8 @@ def assert_consistent() -> None:
     conflicts = {m: sizes for m, sizes in by_model.items() if len(sizes) > 1}
     if conflicts:
         detail = "; ".join(
-            f"{model}: " + ", ".join(f"ctx={ctx} ({', '.join(tasks)})" for ctx, tasks in sizes.items())
+            f"{model}: "
+            + ", ".join(f"ctx={ctx} ({', '.join(tasks)})" for ctx, tasks in sizes.items())
             for model, sizes in conflicts.items()
         )
         raise ValueError(

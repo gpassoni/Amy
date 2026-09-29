@@ -4,6 +4,7 @@ Every test here corresponds to a real answer Donna gave. The pattern across all 
 same: the model is fluent and confident about details it has no basis for, and the fix is
 never a firmer instruction — it is removing the opportunity to guess.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -30,11 +31,22 @@ def _event(db: Database, *, days_ahead: int, hour: int, end_hour: int, summary: 
     repo.replace_events_in_window(
         [
             {
-                "id": f"e{days_ahead}-{hour}", "calendar_id": "primary", "summary": summary,
-                "description": "", "location": "", "start_ts": iso_utc(start),
-                "end_ts": iso_utc(end), "start_raw": iso_utc(start), "end_raw": iso_utc(end),
-                "all_day": 0, "status": "confirmed", "organizer": "", "attendees": "[]",
-                "html_link": "", "recurring_event_id": None, "updated_at": None,
+                "id": f"e{days_ahead}-{hour}",
+                "calendar_id": "primary",
+                "summary": summary,
+                "description": "",
+                "location": "",
+                "start_ts": iso_utc(start),
+                "end_ts": iso_utc(end),
+                "start_raw": iso_utc(start),
+                "end_raw": iso_utc(end),
+                "all_day": 0,
+                "status": "confirmed",
+                "organizer": "",
+                "attendees": "[]",
+                "html_link": "",
+                "recurring_event_id": None,
+                "updated_at": None,
             }
         ],
         iso_utc(start - timedelta(hours=1)),
@@ -137,7 +149,8 @@ def test_honest_replies_are_not_flagged(text):
 
 def test_a_claim_is_fine_when_a_tool_actually_ran():
     reply = base.AgentReply(
-        text="Te l'ho preparata.", agent="schedule",
+        text="Te l'ho preparata.",
+        agent="schedule",
         tool_calls=[("proponi_evento", "PROPOSTA #7")],
     )
     assert not base._claims_without_doing(reply)
@@ -159,14 +172,25 @@ def _fake_llm(value):
 
 def _action(**overrides) -> fallback.ScheduleAction:
     base_fields = dict(
-        frase="lava la moto", tipo="crea", cosa_cambia="niente", ragionamento="x", titolo="Cosa", id_evento=None,
-        inizio_iso=None, fine_iso=None, promemoria_minuti=0, dati_sufficienti=True, domanda=None,
+        frase="lava la moto",
+        tipo="crea",
+        cosa_cambia="niente",
+        ragionamento="x",
+        titolo="Cosa",
+        id_evento=None,
+        inizio_iso=None,
+        fine_iso=None,
+        promemoria_minuti=0,
+        dati_sufficienti=True,
+        domanda=None,
     )
     return fallback.ScheduleAction(**{**base_fields, **overrides})
 
 
 def _local(days: int, hour: int, minute: int = 0) -> str:
-    when = (now_local() + timedelta(days=days)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    when = (now_local() + timedelta(days=days)).replace(
+        hour=hour, minute=minute, second=0, microsecond=0
+    )
     return f"{when:%Y-%m-%dT%H:%M}"
 
 
@@ -182,8 +206,11 @@ def test_the_fallback_creates_a_proposal_when_the_tool_was_refused(db: Database)
     """
     plan = _plan(
         _action(
-            titolo="Lavaggio moto", ragionamento="il lavoro finisce alle 16:30",
-            inizio_iso=_local(2, 17, 30), fine_iso=_local(2, 18, 30), promemoria_minuti=10,
+            titolo="Lavaggio moto",
+            ragionamento="il lavoro finisce alle 16:30",
+            inizio_iso=_local(2, 17, 30),
+            fine_iso=_local(2, 18, 30),
+            promemoria_minuti=10,
         )
     )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
@@ -201,10 +228,18 @@ def test_two_requests_in_one_message_become_two_proposals(db: Database):
     model had understood both — its reasoning said so — but the schema held a single event."""
     message = "Aggiungi una corsa di 10km domenica pomeriggio. Inserisci anche uno slot di burocrazia la mattina"
     plan = _plan(
-        _action(frase="Aggiungi una corsa di 10km domenica pomeriggio", titolo="Corsa 10km",
-                inizio_iso=_local(3, 16, 30), fine_iso=_local(3, 18)),
-        _action(frase="Inserisci anche uno slot di burocrazia la mattina", titolo="Burocrazia",
-                inizio_iso=_local(3, 9), fine_iso=_local(3, 10)),
+        _action(
+            frase="Aggiungi una corsa di 10km domenica pomeriggio",
+            titolo="Corsa 10km",
+            inizio_iso=_local(3, 16, 30),
+            fine_iso=_local(3, 18),
+        ),
+        _action(
+            frase="Inserisci anche uno slot di burocrazia la mattina",
+            titolo="Burocrazia",
+            inizio_iso=_local(3, 9),
+            fine_iso=_local(3, 10),
+        ),
     )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request(message, context="")
@@ -218,8 +253,11 @@ def test_two_requests_in_one_message_become_two_proposals(db: Database):
 def test_an_action_with_no_basis_in_the_message_is_dropped_and_reported(db: Database):
     plan = _plan(
         _action(frase="lava la moto giovedì", titolo="Moto", inizio_iso=_local(2, 17)),
-        _action(frase="prenota una cena al ristorante giapponese", titolo="Cena",
-                inizio_iso=_local(3, 20)),
+        _action(
+            frase="prenota una cena al ristorante giapponese",
+            titolo="Cena",
+            inizio_iso=_local(3, 20),
+        ),
     )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("lava la moto giovedì", context="")
@@ -238,7 +276,9 @@ def test_a_shortfall_between_counted_and_handled_requests_is_stated(db: Database
         count=3,
     )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
-        outcome = fallback.propose_from_request("lava la moto e vai in piscina e poi il dentista", context="")
+        outcome = fallback.propose_from_request(
+            "lava la moto e vai in piscina e poi il dentista", context=""
+        )
 
     assert len(outcome.proposal_ids) == 2
     assert "contato 3 richieste" in outcome.text
@@ -247,8 +287,12 @@ def test_a_shortfall_between_counted_and_handled_requests_is_stated(db: Database
 def test_one_unclear_part_does_not_block_the_others(db: Database):
     plan = _plan(
         _action(frase="lava la moto", titolo="Moto", inizio_iso=_local(2, 17)),
-        _action(frase="organizza una cena", titolo="Cena", dati_sufficienti=False,
-                domanda="A che ora vuoi cenare?"),
+        _action(
+            frase="organizza una cena",
+            titolo="Cena",
+            dati_sufficienti=False,
+            domanda="A che ora vuoi cenare?",
+        ),
     )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("lava la moto e organizza una cena", context="")
@@ -260,8 +304,12 @@ def test_one_unclear_part_does_not_block_the_others(db: Database):
 
 def test_the_fallback_keeps_a_genuine_question_instead_of_inventing(db: Database):
     plan = _plan(
-        _action(frase="organizza una cena", titolo="Cena", dati_sufficienti=False,
-                domanda="A che ora vuoi cenare?")
+        _action(
+            frase="organizza una cena",
+            titolo="Cena",
+            dati_sufficienti=False,
+            domanda="A che ora vuoi cenare?",
+        )
     )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("organizza una cena", context="")
@@ -300,8 +348,8 @@ def test_the_fallback_defaults_a_missing_end_to_one_hour(db: Database):
     ("quote", "expected"),
     [
         ("lava la moto giovedì", True),
-        ("Lava la moto, giovedì!", True),                       # punctuation and case slips
-        ("prenota una cena al ristorante giapponese", False),   # invented
+        ("Lava la moto, giovedì!", True),  # punctuation and case slips
+        ("prenota una cena al ristorante giapponese", False),  # invented
         ("", False),
     ],
 )
@@ -314,58 +362,92 @@ def test_a_shift_that_ends_earlier_is_a_move_not_a_new_event(db: Database):
     """The real failure (#22): «mercoledì finisce alle 15:00» was filed as a new event called
     'Aggiornamento turno', because the schema could only create. It is a change to an event that
     already exists, and the start it did not mention must be kept."""
-    _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")      # 08:00–16:30
-    plan = _plan(_action(frase="finisce alle 15:00", tipo="sposta", cosa_cambia="solo_fine", id_evento="e2-8",
-                         fine_iso=_local(2, 15)))
+    _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")  # 08:00–16:30
+    plan = _plan(
+        _action(
+            frase="finisce alle 15:00",
+            tipo="sposta",
+            cosa_cambia="solo_fine",
+            id_evento="e2-8",
+            fine_iso=_local(2, 15),
+        )
+    )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
-        outcome = fallback.propose_from_request("il turno di mercoledì finisce alle 15:00", context="")
+        outcome = fallback.propose_from_request(
+            "il turno di mercoledì finisce alle 15:00", context=""
+        )
 
     row = repo.get_proposal(outcome.proposal_id)
     assert row["kind"] == "calendar_move"
     payload = repo.proposal_payload(row)
-    assert payload["title"] == "Lavoro"                     # from the calendar, not the model
-    assert payload["start_ts"] == payload["old_start_ts"]   # the unmentioned start is kept
+    assert payload["title"] == "Lavoro"  # from the calendar, not the model
+    assert payload["start_ts"] == payload["old_start_ts"]  # the unmentioned start is kept
     assert payload["end_ts"] != payload["old_end_ts"]
     assert outcome.made[0][1] == "sposta_evento"
 
 
 def test_moving_only_the_start_keeps_the_duration(db: Database):
-    _event(db, days_ahead=2, hour=9, end_hour=10, summary="Riunione")    # 09:00–10:30
-    plan = _plan(_action(frase="sposta la riunione alle 14", tipo="sposta", cosa_cambia="intero", id_evento="e2-9",
-                         inizio_iso=_local(2, 14)))
+    _event(db, days_ahead=2, hour=9, end_hour=10, summary="Riunione")  # 09:00–10:30
+    plan = _plan(
+        _action(
+            frase="sposta la riunione alle 14",
+            tipo="sposta",
+            cosa_cambia="intero",
+            id_evento="e2-9",
+            inizio_iso=_local(2, 14),
+        )
+    )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("sposta la riunione alle 14", context="")
 
     from donna.timeutil import parse_iso
 
     payload = repo.proposal_payload(repo.get_proposal(outcome.proposal_id))
-    assert parse_iso(payload["end_ts"]) - parse_iso(payload["start_ts"]) == timedelta(hours=1, minutes=30)
+    assert parse_iso(payload["end_ts"]) - parse_iso(payload["start_ts"]) == timedelta(
+        hours=1, minutes=30
+    )
 
 
 def test_a_shift_that_starts_later_keeps_its_end(db: Database):
     """«Giovedì inizio alle 9 invece che alle 8» came back as 09:00–17:30 twice: the model shifted
     the whole shift and no prompt wording stopped it. Which half changes is now a field it
     classifies, and the untouched half is taken from the event by code."""
-    _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")      # 08:00–16:30
-    plan = _plan(_action(frase="inizio alle 9", tipo="sposta", cosa_cambia="solo_inizio",
-                         id_evento="e2-8", inizio_iso=_local(2, 9), fine_iso=_local(2, 17, 30)))
+    _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")  # 08:00–16:30
+    plan = _plan(
+        _action(
+            frase="inizio alle 9",
+            tipo="sposta",
+            cosa_cambia="solo_inizio",
+            id_evento="e2-8",
+            inizio_iso=_local(2, 9),
+            fine_iso=_local(2, 17, 30),
+        )
+    )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("inizio alle 9", context="")
 
     payload = repo.proposal_payload(repo.get_proposal(outcome.proposal_id))
-    assert payload["end_ts"] == payload["old_end_ts"]                    # end untouched, whatever the model said
+    assert payload["end_ts"] == payload["old_end_ts"]  # end untouched, whatever the model said
     assert payload["start_ts"] != payload["old_start_ts"]
 
 
 def test_the_model_cannot_move_the_unchanged_half_of_a_shift(db: Database):
     _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")
-    plan = _plan(_action(frase="finisce alle 15", tipo="sposta", cosa_cambia="solo_fine",
-                         id_evento="e2-8", inizio_iso=_local(2, 15), fine_iso=_local(2, 15)))
+    plan = _plan(
+        _action(
+            frase="finisce alle 15",
+            tipo="sposta",
+            cosa_cambia="solo_fine",
+            id_evento="e2-8",
+            inizio_iso=_local(2, 15),
+            fine_iso=_local(2, 15),
+        )
+    )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("finisce alle 15", context="")
 
     payload = repo.proposal_payload(repo.get_proposal(outcome.proposal_id))
-    assert payload["start_ts"] == payload["old_start_ts"]                # its wrong start is ignored
+    assert payload["start_ts"] == payload["old_start_ts"]  # its wrong start is ignored
 
 
 def test_a_decorated_event_id_still_resolves(db: Database):
@@ -385,8 +467,15 @@ def test_every_plan_field_is_required_in_the_schema():
 
 
 def test_an_invented_event_id_is_not_turned_into_a_proposal(db: Database):
-    plan = _plan(_action(frase="sposta il dentista", tipo="sposta", cosa_cambia="intero", id_evento="inventato",
-                         inizio_iso=_local(2, 14)))
+    plan = _plan(
+        _action(
+            frase="sposta il dentista",
+            tipo="sposta",
+            cosa_cambia="intero",
+            id_evento="inventato",
+            inizio_iso=_local(2, 14),
+        )
+    )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("sposta il dentista", context="")
 
@@ -398,8 +487,15 @@ def test_accepting_a_move_updates_google_and_the_mirror(db: Database):
     from donna.pipeline import resolve
 
     _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")
-    plan = _plan(_action(frase="finisce alle 15:00", tipo="sposta", cosa_cambia="solo_fine", id_evento="e2-8",
-                         fine_iso=_local(2, 15)))
+    plan = _plan(
+        _action(
+            frase="finisce alle 15:00",
+            tipo="sposta",
+            cosa_cambia="solo_fine",
+            id_evento="e2-8",
+            fine_iso=_local(2, 15),
+        )
+    )
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("il turno finisce alle 15:00", context="")
 
@@ -408,7 +504,10 @@ def test_accepting_a_move_updates_google_and_the_mirror(db: Database):
 
     assert result.state == "accepted"
     assert update.call_args.args == ("e2-8",)
-    assert repo.get_event("e2-8")["end_ts"] == repo.proposal_payload(repo.get_proposal(outcome.proposal_id))["end_ts"]
+    assert (
+        repo.get_event("e2-8")["end_ts"]
+        == repo.proposal_payload(repo.get_proposal(outcome.proposal_id))["end_ts"]
+    )
 
 
 def test_accepting_a_delete_removes_it_from_google_and_the_mirror(db: Database):
@@ -420,7 +519,7 @@ def test_accepting_a_delete_removes_it_from_google_and_the_mirror(db: Database):
         outcome = fallback.propose_from_request("cancella la riunione", context="")
 
     assert "Elimina" in outcome.text
-    assert repo.get_event("e2-9") is not None               # proposing changes nothing
+    assert repo.get_event("e2-9") is not None  # proposing changes nothing
     with patch.object(resolve.calendar, "delete_event") as delete:
         resolve.accept(outcome.proposal_id, via="test")
     delete.assert_called_once_with("e2-9")
@@ -455,7 +554,10 @@ def test_a_calendar_change_never_depends_on_the_model_calling_a_tool(db: Databas
         patch.object(orchestrator, "run_agent", side_effect=AssertionError("agent loop ran")),
     ):
         result = orchestrator.handle(
-            "lava la moto martedì e vai in piscina giovedì", channel="test", chat_id="t", learn=False
+            "lava la moto martedì e vai in piscina giovedì",
+            channel="test",
+            chat_id="t",
+            learn=False,
         )
 
     assert repo.pending_proposal_count() == 2
@@ -531,7 +633,10 @@ def test_every_day_a_message_names_gets_its_agenda():
     thursday, tuesday = prefetch.referenced_day("giovedì"), prefetch.referenced_day("martedì")
     assert thursday != tuesday
     # Both, in the order the message mentions them.
-    assert prefetch.referenced_days("giovedì vado in piscina e martedì lavo la moto") == [thursday, tuesday]
+    assert prefetch.referenced_days("giovedì vado in piscina e martedì lavo la moto") == [
+        thursday,
+        tuesday,
+    ]
 
 
 def test_prefetch_says_what_it_computed(db: Database):
@@ -556,8 +661,9 @@ def test_a_reminder_reaches_google_as_an_override(db: Database):
         service.return_value.events.return_value.insert.return_value.execute.return_value = {
             "id": "e1"
         }
-        calendar.create_event("X", "2026-12-01T09:00:00+00:00", "2026-12-01T10:00:00+00:00",
-                              reminder_minutes=10)
+        calendar.create_event(
+            "X", "2026-12-01T09:00:00+00:00", "2026-12-01T10:00:00+00:00", reminder_minutes=10
+        )
 
     body = service.return_value.events.return_value.insert.call_args.kwargs["body"]
     assert body["reminders"]["useDefault"] is False

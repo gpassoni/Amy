@@ -13,6 +13,7 @@ Budgeted on purpose. The block is rebuilt for every turn and prompt-eval is the 
 cost of a local model, so it is written to be dense rather than complete: counts instead of
 lists where a count will do, and hard caps on every section.
 """
+
 from __future__ import annotations
 
 import logging
@@ -277,11 +278,14 @@ def _mail_lines() -> list[str]:
         return []
 
     total = sum(counts.values())
-    spread = ", ".join(f"{n} {k.replace('_', ' ')}" for k, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+    spread = ", ".join(
+        f"{n} {k.replace('_', ' ')}" for k, n in sorted(counts.items(), key=lambda kv: -kv[1])
+    )
     lines = [f"Ultimi 7 giorni: {total} email ({spread})."]
 
     important = [
-        r for r in repo.emails_by_category("importante", since=since, limit=MAX_IMPORTANT_MAIL * 2)
+        r
+        for r in repo.emails_by_category("importante", since=since, limit=MAX_IMPORTANT_MAIL * 2)
         if r["is_unread"]
     ][:MAX_IMPORTANT_MAIL]
     if important:

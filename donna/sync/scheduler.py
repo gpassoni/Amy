@@ -8,6 +8,7 @@ loop would stall message handling for the duration of a sync.
 interval must not stack up behind itself — on a cold model load a triage pass can take
 minutes, and three of them running concurrently would fight over the same CPU runner.
 """
+
 from __future__ import annotations
 
 import logging

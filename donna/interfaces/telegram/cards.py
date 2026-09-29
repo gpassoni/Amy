@@ -7,6 +7,7 @@ Text is plain, not Markdown. Telegram's parsers choke on unescaped characters th
 constantly in real email subjects — underscores, asterisks, square brackets — and a message
 that fails to send is worse than one without bold text.
 """
+
 from __future__ import annotations
 
 from donna.pipeline import resolve

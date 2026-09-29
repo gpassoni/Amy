@@ -4,6 +4,7 @@ Exists so every layer can be exercised without Telegram or a browser in the loop
 `doctor` and `smoke` commands are the Phase 0 acceptance check: they prove the local model
 tiers work, report what each one costs, and show what is resident on the GPU.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -284,8 +285,7 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 
     print(f"\n{BOLD}Smoke test{RESET} — una chiamata reale per ogni task del registry\n")
     header = (
-        f"  {'task':<24} {'modello':<16} {'dev':<4} {'try':>4} "
-        f"{'tok in/out':>14} {'latency':>10}"
+        f"  {'task':<24} {'modello':<16} {'dev':<4} {'try':>4} {'tok in/out':>14} {'latency':>10}"
     )
     print(f"{DIM}{header}{RESET}")
 
@@ -676,7 +676,9 @@ def cmd_proposals(args: argparse.Namespace) -> int:
             print(f'       {DIM}"{row["evidence_quote"][:120]}"{RESET}')
         source = repo.get_email(row["source_id"]) if row["source_type"] == "email" else None
         if source is not None:
-            print(f"       {DIM}da: {source['from_addr']} — {(source['subject'] or '')[:60]}{RESET}")
+            print(
+                f"       {DIM}da: {source['from_addr']} — {(source['subject'] or '')[:60]}{RESET}"
+            )
         print()
 
     print(f"  {DIM}accetta con:  python -m donna accept <id>{RESET}")
@@ -768,7 +770,6 @@ def cmd_chat(args: argparse.Namespace) -> int:
             _print_turn_debug(result)
 
 
-
 def _print_turn_debug(result) -> None:
     print(
         f"{DIM}  intent={result.intent} ({result.route_via} {result.confidence:.2f}) "
@@ -805,7 +806,9 @@ def cmd_traces(args: argparse.Namespace) -> int:
     if not rows:
         print("Nessuna trace registrata.")
         return 0
-    print(f"{DIM}  {'quando':<20} {'task':<22} {'modello':<16} {'dev':<4} {'in/out':>10} {'ms':>7}{RESET}")
+    print(
+        f"{DIM}  {'quando':<20} {'task':<22} {'modello':<16} {'dev':<4} {'in/out':>10} {'ms':>7}{RESET}"
+    )
     for r in rows:
         mark = OK if r["ok"] else BAD
         io = f"{r['tokens_in'] or 0}/{r['tokens_out'] or 0}"
@@ -850,9 +853,7 @@ def build_parser() -> argparse.ArgumentParser:
     triage.add_argument(
         "--dry-run", action="store_true", help="chiama il modello ma non scrive nulla"
     )
-    triage.add_argument(
-        "--no-labels", action="store_true", help="non applicare le label su Gmail"
-    )
+    triage.add_argument("--no-labels", action="store_true", help="non applicare le label su Gmail")
     triage.set_defaults(func=cmd_triage)
 
     extract = sub.add_parser("extract", help="cerca impegni nelle email importanti")

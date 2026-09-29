@@ -7,6 +7,7 @@ What is new is incremental sync. v1 re-queried `is:unread newer_than:3d` and re-
 message every time, which is both slow and unable to notice that a message was read or
 relabelled elsewhere. Gmail's history API gives us a change feed instead.
 """
+
 from __future__ import annotations
 
 import base64
@@ -268,8 +269,8 @@ class FetchReport:
     that advances its sync cursor while messages are still missing loses them forever."""
 
     messages: list[Message] = field(default_factory=list)
-    missing: list[str] = field(default_factory=list)   # deleted server-side; not an error
-    failed: list[str] = field(default_factory=list)    # could not be fetched; retry later
+    missing: list[str] = field(default_factory=list)  # deleted server-side; not an error
+    failed: list[str] = field(default_factory=list)  # could not be fetched; retry later
 
     @property
     def complete(self) -> bool:

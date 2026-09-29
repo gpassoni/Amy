@@ -9,6 +9,7 @@ translation the model does implicitly. The classification rules are carried over
 services/ai_classifier.py, which encoded real judgements worth keeping — sharpened with the
 distinctions that a 2B model gets wrong without them.
 """
+
 from __future__ import annotations
 
 # ---------------------------------------------------------------- triage

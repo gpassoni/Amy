@@ -12,6 +12,7 @@ Nothing here writes to Google. The output is a row in `proposals`, which the use
 or rejects. That is by design: an extraction that is wrong in a proposal costs a tap, and
 the same extraction wrong in a calendar entry costs trust.
 """
+
 from __future__ import annotations
 
 import logging

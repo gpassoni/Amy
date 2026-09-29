@@ -15,6 +15,7 @@ Every outcome writes a `feedback` row, accepted and rejected alike. Rejections a
 valuable half of that dataset: they are the only signal for what Donna should have left
 alone.
 """
+
 from __future__ import annotations
 
 import logging
@@ -55,7 +56,10 @@ def describe(row) -> str:
     start, end = parse_iso(payload.get("start_ts")), parse_iso(payload.get("end_ts"))
     title = payload.get("title") or "(senza titolo)"
     if row["kind"] == "calendar_move":
-        old_start, old_end = parse_iso(payload.get("old_start_ts")), parse_iso(payload.get("old_end_ts"))
+        old_start, old_end = (
+            parse_iso(payload.get("old_start_ts")),
+            parse_iso(payload.get("old_end_ts")),
+        )
         before = f"{format_range_it(old_start, old_end)} → " if old_start else ""
         return f"Sposta «{title}»: {before}{format_range_it(start, end) if start else '?'}"
     if row["kind"] == "calendar_delete":
@@ -242,7 +246,9 @@ def edit_and_accept(
 
     resolution = accept(proposal_id, via=via)
     # `accept` records its own feedback row; the edit row above is the interesting one.
-    return Resolution(proposal_id, "edited", resolution.message, resolution.result_ref, resolution.link)
+    return Resolution(
+        proposal_id, "edited", resolution.message, resolution.result_ref, resolution.link
+    )
 
 
 def _description_for(row, payload: dict) -> str:

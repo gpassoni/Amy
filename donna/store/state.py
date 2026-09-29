@@ -5,6 +5,7 @@ from .env on first run — you do not know your own chat id until you have messa
 and it has to survive restarts. Making the first /start bind it and storing it here means
 setup is "message the bot", with no file to edit.
 """
+
 from __future__ import annotations
 
 from donna.store.db import get_db

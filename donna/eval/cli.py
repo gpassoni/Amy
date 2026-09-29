@@ -1,4 +1,5 @@
 """Entry point for the eval suites: python -m donna.eval.cli run"""
+
 from __future__ import annotations
 
 import argparse
@@ -35,7 +36,9 @@ def main(argv: list[str] | None = None) -> int:
 
     failed_total = 0
     for suite in suites:
-        print(f"\n  {suite.suite}: {suite.passed}/{suite.total}  (media {suite.mean_latency_ms} ms)")
+        print(
+            f"\n  {suite.suite}: {suite.passed}/{suite.total}  (media {suite.mean_latency_ms} ms)"
+        )
         for outcome in suite.outcomes:
             mark = "  ok " if outcome.passed else "  BAD"
             if outcome.passed and not args.verbose:

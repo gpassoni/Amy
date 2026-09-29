@@ -7,6 +7,7 @@ Ordering note: the classification is written to the database *before* the Gmail 
 applied. If labelling fails (quota, network), the verdict is still recorded and
 `label_applied` stays 0, so the work is not repeated — only the labelling is retried.
 """
+
 from __future__ import annotations
 
 import logging
@@ -59,7 +60,9 @@ def classify_one(
     return result.value, result.model, result.trace_id
 
 
-def run_triage(*, limit: int | None = None, dry_run: bool = False, apply_labels: bool = True) -> TriageResult:
+def run_triage(
+    *, limit: int | None = None, dry_run: bool = False, apply_labels: bool = True
+) -> TriageResult:
     """Classify the pending queue.
 
     dry_run still calls the model — the point is to inspect its judgement without writing

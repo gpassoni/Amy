@@ -11,6 +11,7 @@ bug: it read history out of a LangGraph checkpointer and passed it *back* into t
 thread, so the graph appended it to state and history doubled every turn while the sliding
 window never actually slid.
 """
+
 from __future__ import annotations
 
 import logging
@@ -111,9 +112,7 @@ def handle(
             # What was handed over, spelled out, so the dashboard can show it verbatim.
             run.note(prefetched=precomputed.parts, prefetched_text=precomputed.text)
 
-        history = _history_for_model(
-            repo.recent_turns(channel, chat_id, limit=HISTORY_TURNS)
-        )
+        history = _history_for_model(repo.recent_turns(channel, chat_id, limit=HISTORY_TURNS))
 
         expects_mutation = decision.intent in MUTATION_INTENTS
         has_plan = decision.intent in STRUCTURED_INTENTS

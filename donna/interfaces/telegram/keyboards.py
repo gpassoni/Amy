@@ -7,6 +7,7 @@ does nothing when tapped.
 
 Format: `<kind>:<action>:<id>` — e.g. "p:ok:17". Short by design.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

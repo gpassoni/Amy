@@ -5,6 +5,7 @@ object to hold that state would be ceremony. Everything here is deliberately exp
 about which columns it touches, so a sync pass can never clobber pipeline output (a sync
 must not reset a triage decision just because Gmail sent the message again).
 """
+
 from __future__ import annotations
 
 import json
@@ -208,7 +209,9 @@ def search_emails(query: str, limit: int = 10) -> list[sqlite3.Row]:
     )
 
 
-def emails_by_category(category: str, *, since: str | None = None, limit: int = 20) -> list[sqlite3.Row]:
+def emails_by_category(
+    category: str, *, since: str | None = None, limit: int = 20
+) -> list[sqlite3.Row]:
     if since:
         return get_db().query(
             "SELECT * FROM emails WHERE category = ? AND received_at >= ?"
@@ -222,9 +225,7 @@ def emails_by_category(category: str, *, since: str | None = None, limit: int = 
 
 
 def recent_emails(limit: int = 50) -> list[sqlite3.Row]:
-    return get_db().query(
-        "SELECT * FROM emails ORDER BY received_at DESC LIMIT ?", (limit,)
-    )
+    return get_db().query("SELECT * FROM emails ORDER BY received_at DESC LIMIT ?", (limit,))
 
 
 def category_counts(since: str | None = None) -> dict[str, int]:
@@ -238,7 +239,9 @@ def category_counts(since: str | None = None) -> dict[str, int]:
 
 
 # ================================================================== events
-def replace_events_in_window(events: list[dict[str, Any]], start_iso: str, end_iso: str) -> dict[str, int]:
+def replace_events_in_window(
+    events: list[dict[str, Any]], start_iso: str, end_iso: str
+) -> dict[str, int]:
     """Reconcile the mirrored horizon against what Google just returned.
 
     Rows in the window that Google no longer lists were deleted elsewhere, so they are
@@ -275,7 +278,9 @@ def replace_events_in_window(events: list[dict[str, Any]], start_iso: str, end_i
     return {"upserted": len(events), "deleted": len(stale)}
 
 
-def events_between(start_iso: str, end_iso: str, *, include_cancelled: bool = False) -> list[sqlite3.Row]:
+def events_between(
+    start_iso: str, end_iso: str, *, include_cancelled: bool = False
+) -> list[sqlite3.Row]:
     sql = (
         "SELECT * FROM events WHERE start_ts >= ? AND start_ts < ?"
         + ("" if include_cancelled else " AND status != 'cancelled'")
@@ -384,8 +389,7 @@ def record_donna_event(
 def donna_events(limit: int = 50) -> list[sqlite3.Row]:
     """Events Donna created, newest first. The provenance view."""
     return get_db().query(
-        "SELECT * FROM events WHERE origin_proposal_id IS NOT NULL"
-        " ORDER BY start_ts DESC LIMIT ?",
+        "SELECT * FROM events WHERE origin_proposal_id IS NOT NULL ORDER BY start_ts DESC LIMIT ?",
         (limit,),
     )
 
@@ -414,8 +418,7 @@ def replace_all_tasks(tasks: list[dict[str, Any]]) -> dict[str, int]:
 def open_tasks(limit: int = 25) -> list[sqlite3.Row]:
     # NULLs last: an undated task should not outrank one that is due tomorrow.
     return get_db().query(
-        "SELECT * FROM tasks WHERE status = 'needsAction'"
-        " ORDER BY due_ts IS NULL, due_ts LIMIT ?",
+        "SELECT * FROM tasks WHERE status = 'needsAction' ORDER BY due_ts IS NULL, due_ts LIMIT ?",
         (limit,),
     )
 
@@ -510,9 +513,7 @@ def resolved_proposals(limit: int = 20) -> list[sqlite3.Row]:
 
 
 def pending_proposal_count() -> int:
-    return get_db().scalar(
-        "SELECT count(*) FROM proposals WHERE state = 'pending'", default=0
-    )
+    return get_db().scalar("SELECT count(*) FROM proposals WHERE state = 'pending'", default=0)
 
 
 def unnotified_proposals(limit: int = 10) -> list[sqlite3.Row]:
@@ -567,9 +568,7 @@ def reopen_proposal(proposal_id: int) -> bool:
 
 
 def attach_proposal_result(proposal_id: int, result_ref: str | None) -> None:
-    get_db().execute(
-        "UPDATE proposals SET result_ref = ? WHERE id = ?", (result_ref, proposal_id)
-    )
+    get_db().execute("UPDATE proposals SET result_ref = ? WHERE id = ?", (result_ref, proposal_id))
 
 
 def update_proposal_payload(proposal_id: int, payload: dict[str, Any]) -> None:
@@ -633,8 +632,7 @@ def recent_turns(channel: str, chat_id: str, *, limit: int = 8) -> list[dict[str
 def conversation(channel: str, chat_id: str, *, limit: int = 40) -> list[sqlite3.Row]:
     """Full turns with metadata, for display. Unlike recent_turns, nothing is trimmed."""
     rows = get_db().query(
-        "SELECT * FROM conversations WHERE channel = ? AND chat_id = ?"
-        " ORDER BY id DESC LIMIT ?",
+        "SELECT * FROM conversations WHERE channel = ? AND chat_id = ? ORDER BY id DESC LIMIT ?",
         (channel, chat_id, limit),
     )
     return list(reversed(rows))

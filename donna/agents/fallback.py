@@ -26,6 +26,7 @@ part of the request from vanishing quietly:
 It also handles moving and deleting existing events, which the single-event schema could only
 misread as "create a new event called 'Aggiornamento turno'".
 """
+
 from __future__ import annotations
 
 import logging
@@ -134,7 +135,7 @@ class SchedulePlan(BaseModel):
 
 class Outcome(BaseModel):
     text: str
-    made: list[tuple[int, str]] = Field(default_factory=list)   # (proposal id, tool name)
+    made: list[tuple[int, str]] = Field(default_factory=list)  # (proposal id, tool name)
     trace_id: str | None = None
 
     @property
@@ -148,9 +149,9 @@ class Outcome(BaseModel):
 
 @dataclass(slots=True)
 class _Tally:
-    made: list[tuple[int, str, str]] = field(default_factory=list)   # (id, description, tool)
+    made: list[tuple[int, str, str]] = field(default_factory=list)  # (id, description, tool)
     questions: list[str] = field(default_factory=list)
-    skipped: list[str] = field(default_factory=list)              # «frase» — why
+    skipped: list[str] = field(default_factory=list)  # «frase» — why
 
 
 def _tokens(text: str) -> set[str]:
@@ -206,9 +207,13 @@ def _apply(action: ScheduleAction, message: str, tally: _Tally, trace_id: str | 
                 return
             # Sanity, in code: an event before now, or over a year out, is a misparse rather
             # than an intention. Better to say so than to file a proposal for last Tuesday.
-            if start < now_local() - timedelta(minutes=5) or start > now_local() + timedelta(days=400):
+            if start < now_local() - timedelta(minutes=5) or start > now_local() + timedelta(
+                days=400
+            ):
                 logger.info("Azione con data implausibile: %s", start)
-                tally.skipped.append(f"«{label}» — la data che ne ricavo ({start:%d/%m/%Y}) non ha senso")
+                tally.skipped.append(
+                    f"«{label}» — la data che ne ricavo ({start:%d/%m/%Y}) non ha senso"
+                )
                 return
             if not action.titolo.strip():
                 tally.skipped.append(f"«{label}» — non ho capito come chiamarlo")
@@ -279,7 +284,11 @@ def _compose(tally: _Tally, *, asked: int) -> str:
     if tally.questions:
         if lines:
             lines.append("")
-        lines.append("Mi serve un chiarimento:" if len(tally.questions) == 1 else "Mi servono dei chiarimenti:")
+        lines.append(
+            "Mi serve un chiarimento:"
+            if len(tally.questions) == 1
+            else "Mi servono dei chiarimenti:"
+        )
         lines.extend(f"- {q}" for q in tally.questions)
 
     if tally.skipped:
@@ -310,7 +319,9 @@ def propose_from_request(
     `context` is the same world-state block the agent saw, so "after work" resolves against
     the real calendar rather than against the model's memory of a typical week.
     """
-    prompt = "\n\n".join(part for part in (context, _events_block(), f"---\n\nRichiesta: {message}") if part)
+    prompt = "\n\n".join(
+        part for part in (context, _events_block(), f"---\n\nRichiesta: {message}") if part
+    )
     try:
         result = get_llm().structured(
             registry.SCHEDULE,
@@ -334,7 +345,11 @@ def propose_from_request(
 
     logger.info(
         "Piano: %d richieste contate, %d azioni -> %d proposte, %d domande, %d scartate",
-        plan.numero_richieste, len(plan.azioni), len(tally.made), len(tally.questions), len(tally.skipped),
+        plan.numero_richieste,
+        len(plan.azioni),
+        len(tally.made),
+        len(tally.questions),
+        len(tally.skipped),
     )
     return Outcome(
         text=_compose(tally, asked=plan.numero_richieste),

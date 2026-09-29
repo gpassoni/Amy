@@ -11,6 +11,7 @@ rather than being a one-off script:
 Model calls make it slow and mildly non-deterministic, so it lives here rather than in the
 pytest suite, which stays fast and offline.
 """
+
 from __future__ import annotations
 
 import json
@@ -86,8 +87,11 @@ def run_triage_suite(cases: list[EmailCase] | None = None) -> SuiteResult:
                 ok,
                 detail,
                 elapsed,
-                {"signal": verdict.signal, "category": verdict.category,
-                 "confidence": verdict.confidence},
+                {
+                    "signal": verdict.signal,
+                    "category": verdict.category,
+                    "confidence": verdict.confidence,
+                },
             )
         )
     return suite
@@ -126,9 +130,13 @@ def run_extraction_suite(cases: list[EmailCase] | None = None) -> SuiteResult:
             # those are the expensive mistake: a wrong proposal trains the user to ignore
             # proposals.
             ok = not result.proposable
-            detail = "nessuna proposta, corretto" if ok else (
-                f"FALSO POSITIVO: {result.commitment.title!r} il "
-                f"{_local(result.when.start_ts) if result.when else '?'}"
+            detail = (
+                "nessuna proposta, corretto"
+                if ok
+                else (
+                    f"FALSO POSITIVO: {result.commitment.title!r} il "
+                    f"{_local(result.when.start_ts) if result.when else '?'}"
+                )
             )
             suite.outcomes.append(CaseOutcome(case.name, ok, detail, elapsed, produced))
             continue
@@ -157,17 +165,16 @@ def run_extraction_suite(cases: list[EmailCase] | None = None) -> SuiteResult:
         date_ok = got.startswith(expected) if date_only else got == expected
 
         title = (result.commitment.title or "").lower()
-        title_ok = (
-            case.expect_title_contains is None
-            or case.expect_title_contains.lower() in title
-        )
+        title_ok = case.expect_title_contains is None or case.expect_title_contains.lower() in title
 
         ok = date_ok and title_ok
         problems = []
         if not date_ok:
             problems.append(f"data: atteso {expected}, ottenuto {got}")
         if not title_ok:
-            problems.append(f"titolo: atteso contenga {case.expect_title_contains!r}, ottenuto {title!r}")
+            problems.append(
+                f"titolo: atteso contenga {case.expect_title_contains!r}, ottenuto {title!r}"
+            )
         detail = f"{got} · {result.commitment.title}" if ok else "; ".join(problems)
 
         suite.outcomes.append(CaseOutcome(case.name, ok, detail, elapsed, produced))

@@ -8,6 +8,7 @@ The ordering here matters: the history cursor is captured *before* the backfill 
 a message that arrives mid-backfill is replayed by the next incremental pass instead of
 being lost in the gap.
 """
+
 from __future__ import annotations
 
 import logging
@@ -119,9 +120,7 @@ def sync_gmail(*, full: bool = False, limit: int | None = None) -> SyncResult:
                     relabelled += 1
             result.updated += relabelled
             if relabelled:
-                logger.info(
-                    "%d messaggi aggiornati solo nelle label, senza scaricarli", relabelled
-                )
+                logger.info("%d messaggi aggiornati solo nelle label, senza scaricarli", relabelled)
 
             ids = list(changes.added)
             if limit:

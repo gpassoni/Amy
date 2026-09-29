@@ -13,6 +13,7 @@ Google. That was inconsistent with creation — a wrong guess about which event 
 The event a move or delete refers to is always looked up in code, so its title in the proposal
 is what the calendar says and not what the model remembers.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,8 +31,8 @@ class ActionError(ValueError):
 @dataclass(slots=True)
 class Prepared:
     proposal_id: int | None
-    description: str          # one line, what the proposal does
-    tool: str = "proponi_evento"   # the agent tool this corresponds to, for the activity log
+    description: str  # one line, what the proposal does
+    tool: str = "proponi_evento"  # the agent tool this corresponds to, for the activity log
 
 
 def _clean_id(raw: str | None) -> str:

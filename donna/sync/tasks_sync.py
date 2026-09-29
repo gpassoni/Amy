@@ -1,4 +1,5 @@
 """Google Tasks -> local mirror. Full re-list and reconcile; personal lists are small."""
+
 from __future__ import annotations
 
 import logging

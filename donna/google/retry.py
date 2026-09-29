@@ -10,6 +10,7 @@ directly: a 154-message backfill died partway through with
 Rate limiting is not an edge case here, it is the normal operating condition of a backfill,
 so it belongs in the transport layer rather than being sprinkled through callers.
 """
+
 from __future__ import annotations
 
 import json
@@ -46,7 +47,9 @@ def _reasons(exc: HttpError) -> set[str]:
     matching silently misses real rate-limit errors.
     """
     try:
-        payload = json.loads(exc.content.decode("utf-8") if isinstance(exc.content, bytes) else exc.content)
+        payload = json.loads(
+            exc.content.decode("utf-8") if isinstance(exc.content, bytes) else exc.content
+        )
     except (ValueError, AttributeError, UnicodeDecodeError):
         return set()
 
@@ -54,11 +57,7 @@ def _reasons(exc: HttpError) -> set[str]:
     if not isinstance(error, dict):
         return set()
 
-    found = {
-        item.get("reason", "")
-        for item in error.get("errors") or []
-        if isinstance(item, dict)
-    }
+    found = {item.get("reason", "") for item in error.get("errors") or [] if isinstance(item, dict)}
     if isinstance(error.get("status"), str):
         found.add(error["status"])
     return {r for r in found if r}

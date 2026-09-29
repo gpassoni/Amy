@@ -3,6 +3,7 @@
 The tests that matter here are the concurrency and failure ones. A proposal is acted on from
 Telegram, the web UI and the CLI, and a double tap must not produce two calendar events.
 """
+
 from __future__ import annotations
 
 import json
@@ -66,7 +67,9 @@ def _http_error(status: int = 500) -> HttpError:
 # ---------------------------------------------------------------- accept
 def test_accept_creates_the_event_and_closes_the_proposal(db: Database):
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
+    with patch(
+        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
+    ) as create:
         result = resolve.accept(proposal_id)
 
     create.assert_called_once()
@@ -105,12 +108,22 @@ def test_a_later_sync_does_not_erase_that_provenance(db: Database):
     repo.replace_events_in_window(
         [
             {
-                "id": "evt-1", "calendar_id": "primary", "summary": "Dentista",
-                "description": "", "location": "", "start_ts": payload["start_ts"],
-                "end_ts": payload["end_ts"], "start_raw": payload["start_ts"],
-                "end_raw": payload["end_ts"], "all_day": 0, "status": "confirmed",
-                "organizer": "", "attendees": "[]", "html_link": "",
-                "recurring_event_id": None, "updated_at": None,
+                "id": "evt-1",
+                "calendar_id": "primary",
+                "summary": "Dentista",
+                "description": "",
+                "location": "",
+                "start_ts": payload["start_ts"],
+                "end_ts": payload["end_ts"],
+                "start_raw": payload["start_ts"],
+                "end_raw": payload["end_ts"],
+                "all_day": 0,
+                "status": "confirmed",
+                "organizer": "",
+                "attendees": "[]",
+                "html_link": "",
+                "recurring_event_id": None,
+                "updated_at": None,
             }
         ],
         payload["start_ts"],
@@ -125,7 +138,9 @@ def test_a_later_sync_does_not_erase_that_provenance(db: Database):
 def test_accepting_twice_creates_one_event(db: Database):
     # The double-tap case: Telegram buttons are easy to press twice.
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
+    with patch(
+        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
+    ) as create:
         first = resolve.accept(proposal_id)
         second = resolve.accept(proposal_id)
 
@@ -147,9 +162,7 @@ def test_a_failed_google_write_reopens_the_proposal(db: Database):
     Otherwise it sits in `accepted` with no event to show for it, and the user cannot retry.
     """
     proposal_id = make_proposal(db)
-    with patch(
-        "donna.pipeline.resolve.calendar.create_event", side_effect=_http_error()
-    ):
+    with patch("donna.pipeline.resolve.calendar.create_event", side_effect=_http_error()):
         with pytest.raises(resolve.ProposalError):
             resolve.accept(proposal_id)
 
@@ -213,7 +226,9 @@ def test_rejecting_twice_is_harmless(db: Database):
 def test_edit_and_accept_applies_the_correction(db: Database):
     proposal_id = make_proposal(db)
     new_start = iso_utc(now_utc() + timedelta(days=3))
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
+    with patch(
+        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
+    ) as create:
         resolve.edit_and_accept(proposal_id, title="Igiene dentale", start_ts=new_start)
 
     # The corrected values are what reach Google.
@@ -266,14 +281,16 @@ def test_an_expired_proposal_cannot_be_accepted(db: Database):
 def test_the_calendar_entry_explains_itself(db: Database):
     """Six months on, "why is this on my calendar?" should be answerable from the entry."""
     proposal_id = make_proposal(db)
-    with patch("donna.pipeline.resolve.calendar.create_event", return_value=fake_create()) as create:
+    with patch(
+        "donna.pipeline.resolve.calendar.create_event", return_value=fake_create()
+    ) as create:
         resolve.accept(proposal_id)
 
     description = create.call_args.kwargs["description"]
     assert "Donna" in description
-    assert "giovedì alle 15:00" in description   # the reasoning
+    assert "giovedì alle 15:00" in description  # the reasoning
     assert "l'appuntamento è giovedì" in description  # the evidence quote
-    assert "mail.google.com" in description      # a link back to the source
+    assert "mail.google.com" in description  # a link back to the source
 
 
 def test_describe_renders_an_all_day_proposal_without_a_time(db: Database):

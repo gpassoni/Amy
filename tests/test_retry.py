@@ -4,6 +4,7 @@ The distinction that matters: a 403 meaning "slow down" must be retried, while a
 meaning "you lack permission" must fail immediately — retrying the latter just delays a
 clear error behind a minute of pointless backoff.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -63,7 +64,9 @@ def test_with_backoff_returns_once_the_call_succeeds(monkeypatch):
 def test_with_backoff_gives_up_and_reraises(monkeypatch):
     monkeypatch.setattr(retry.time, "sleep", lambda _: None)
     with pytest.raises(HttpError):
-        retry.with_backoff(lambda: (_ for _ in ()).throw(_http_error(429)), attempts=2, base_delay=0.0)
+        retry.with_backoff(
+            lambda: (_ for _ in ()).throw(_http_error(429)), attempts=2, base_delay=0.0
+        )
 
 
 def test_with_backoff_does_not_retry_a_permanent_failure(monkeypatch):
@@ -86,6 +89,6 @@ def test_rate_limiter_spaces_calls(monkeypatch):
     monkeypatch.setattr(retry.time, "monotonic", lambda: clock["t"])
 
     limiter = retry.RateLimiter(min_interval=0.5)
-    limiter.wait()          # first call sets the baseline
-    limiter.wait()          # immediately after, so it must wait the full interval
+    limiter.wait()  # first call sets the baseline
+    limiter.wait()  # immediately after, so it must wait the full interval
     assert slept and slept[-1] == pytest.approx(0.5)

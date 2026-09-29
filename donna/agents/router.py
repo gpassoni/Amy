@@ -13,6 +13,7 @@ invented intent is unrepresentable.
 When the model is unsure, routing falls back to `chat`, which holds every tool. Degrading to
 the general agent is always safe; degrading to a narrow one is not.
 """
+
 from __future__ import annotations
 
 import logging
@@ -69,7 +70,7 @@ Rispondi SOLO con il JSON."""
 class Route:
     intent: str
     confidence: float
-    via: str          # "regex" | "model" | "fallback"
+    via: str  # "regex" | "model" | "fallback"
     trace_id: str | None = None
 
 
@@ -103,7 +104,9 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
     (
         "task_query",
-        re.compile(r"\bcosa devo fare\b|\b(mie )?task\b|\bcose da fare\b|\blista (della )?spesa\b", re.I),
+        re.compile(
+            r"\bcosa devo fare\b|\b(mie )?task\b|\bcose da fare\b|\blista (della )?spesa\b", re.I
+        ),
     ),
     (
         "inbox_query",
@@ -111,7 +114,9 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
     (
         "smalltalk",
-        re.compile(r"^\s*(grazie|ciao|buongiorno|buonasera|sei (la migliore|un genio)|ok)\b\W*$", re.I),
+        re.compile(
+            r"^\s*(grazie|ciao|buongiorno|buonasera|sei (la migliore|un genio)|ok)\b\W*$", re.I
+        ),
     ),
 ]
 
@@ -162,9 +167,7 @@ def route(message: str) -> Route:
         return quick
 
     try:
-        result = get_llm().structured(
-            registry.ROUTE, RouterDecision, message, system=ROUTER_SYSTEM
-        )
+        result = get_llm().structured(registry.ROUTE, RouterDecision, message, system=ROUTER_SYSTEM)
     except LLMError as exc:
         logger.warning("Router failed (%s); falling back to chat", exc)
         return Route("smalltalk", 0.0, "fallback")

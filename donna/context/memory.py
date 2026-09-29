@@ -14,6 +14,7 @@ nothing. If the table ever reaches tens of thousands of rows, that is the upgrad
 Facts marked `always_on` bypass retrieval entirely — a standing constraint should not have to
 be semantically similar to the question to apply.
 """
+
 from __future__ import annotations
 
 import logging
@@ -124,9 +125,7 @@ def all_facts(limit: int = 200) -> list:
 def recall(query: str | None, *, limit: int = 8) -> list[str]:
     """Always-on facts first, then the closest matches to `query`."""
     db = get_db()
-    rows = db.query(
-        "SELECT id, text, always_on, embedding FROM facts WHERE superseded_by IS NULL"
-    )
+    rows = db.query("SELECT id, text, always_on, embedding FROM facts WHERE superseded_by IS NULL")
     if not rows:
         return []
 

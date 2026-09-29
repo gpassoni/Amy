@@ -14,6 +14,7 @@ Purpose, in order of importance:
 Server-rendered Jinja plus htmx: no build step, no npm, no client state to keep in sync. Bound
 to 127.0.0.1 by default because there is no authentication — this reads a real mailbox.
 """
+
 from __future__ import annotations
 
 import logging
@@ -359,9 +360,7 @@ def memory_add(text: str = Form(...), always_on: str = Form("")) -> RedirectResp
     from donna.context import memory
 
     if text.strip():
-        memory.remember(
-            text.strip(), source="web", confidence=1.0, always_on=bool(always_on)
-        )
+        memory.remember(text.strip(), source="web", confidence=1.0, always_on=bool(always_on))
     return RedirectResponse("/memory", status_code=303)
 
 

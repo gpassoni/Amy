@@ -3,6 +3,7 @@
 Every sync reports the same counters so the CLI, the scheduler log and the web dashboard
 can render any of them identically.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

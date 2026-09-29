@@ -10,6 +10,7 @@ Synchronous by design. Async callers (Telegram, FastAPI) use the a* wrappers, wh
 off to a worker thread — inference blocks on the Ollama side, so there is nothing to gain
 from an async HTTP client here.
 """
+
 from __future__ import annotations
 
 import asyncio

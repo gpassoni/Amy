@@ -2,6 +2,7 @@
 reloads — a cost that is invisible in code review and only shows up as "Donna feels slow".
 These tests are the guard rail.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -50,9 +51,7 @@ def test_only_one_generative_model_is_configured():
     generative model back is therefore a performance regression, not an optimisation.
     """
     generative = {
-        registry.get_spec(task).model
-        for task in registry.all_tasks()
-        if task != registry.EMBED
+        registry.get_spec(task).model for task in registry.all_tasks() if task != registry.EMBED
     }
     assert len(generative) == 1, f"più di un modello generativo: {sorted(generative)}"
 
@@ -76,9 +75,10 @@ def test_tasks_are_still_specialised_even_sharing_a_model():
     # classifier deterministic and a conversation not.
     assert registry.get_spec(registry.CLASSIFY_EMAIL).temperature == 0.0
     assert registry.get_spec(registry.CHAT).temperature > 0.0
-    assert registry.get_spec(registry.ROUTE).num_predict < registry.get_spec(
-        registry.EXTRACT_COMMITMENT
-    ).num_predict
+    assert (
+        registry.get_spec(registry.ROUTE).num_predict
+        < registry.get_spec(registry.EXTRACT_COMMITMENT).num_predict
+    )
 
 
 def test_workers_do_not_burn_time_on_reasoning_streams():

@@ -12,6 +12,7 @@ corrupt the loop's state.
 `notified_at` is set only after a successful send, so a network failure means the proposal is
 retried on the next tick rather than silently swallowed.
 """
+
 from __future__ import annotations
 
 import asyncio

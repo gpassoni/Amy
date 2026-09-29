@@ -12,6 +12,7 @@ bot's name can message it. Donna reads a real mailbox and writes to a real calen
 handler checks the chat against the one she was bound to, and the first `/start` is what binds
 her.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -86,9 +87,7 @@ async def start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
 async def reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
     if not await _guard(update):
         return
-    removed = await asyncio.to_thread(
-        orchestrator.reset, CHANNEL, str(update.effective_chat.id)
-    )
+    removed = await asyncio.to_thread(orchestrator.reset, CHANNEL, str(update.effective_chat.id))
     await update.message.reply_text(
         f"Fascicolo archiviato: {removed} messaggi dimenticati.\n"
         "Quello che so di te resta — solo la conversazione ricomincia."
@@ -210,8 +209,11 @@ async def button(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             resolution = await asyncio.to_thread(resolve.accept, callback.target, via="telegram")
         except resolve.ProposalError as exc:
-            await _safe_edit(query, f"{cards.proposal_card(row)}\n\n❌ {exc}",
-                             keyboards.proposal_keyboard(row["id"]))
+            await _safe_edit(
+                query,
+                f"{cards.proposal_card(row)}\n\n❌ {exc}",
+                keyboards.proposal_keyboard(row["id"]),
+            )
             return
         await _safe_edit(query, cards.resolved_card(row, resolution))
         return

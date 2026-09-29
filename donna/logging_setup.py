@@ -4,6 +4,7 @@ This lived inside services/google_auth.py, which meant importing an auth module 
 side effect of reconfiguring logging for the whole process. It is now explicit and
 idempotent: call setup_logging() once from an entrypoint.
 """
+
 from __future__ import annotations
 
 import logging

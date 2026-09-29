@@ -8,6 +8,7 @@ Note what is *not* here: no supervisor, no agent that calls another agent. The r
 one, it answers. Cross-domain requests are handled by `chat`, which gets everything — one
 extra LLM hop is more expensive than a slightly worse tool choice.
 """
+
 from __future__ import annotations
 
 from donna.agents.base import AgentSpec
@@ -42,7 +43,13 @@ far tornare i conti: è il modo più veloce per mettergli un impegno dove non lo
 
 Se la richiesta è ambigua sull'orario, scegli l'interpretazione più probabile e dillo,
 invece di fare domande.""",
-    tool_names=["elenca_eventi", "trova_slot_liberi", "proponi_evento", "sposta_evento", "elimina_evento"],
+    tool_names=[
+        "elenca_eventi",
+        "trova_slot_liberi",
+        "proponi_evento",
+        "sposta_evento",
+        "elimina_evento",
+    ],
 )
 
 INBOX = AgentSpec(

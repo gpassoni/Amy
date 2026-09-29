@@ -4,6 +4,7 @@ Personal task lists are small — a few hundred items at most — so the mirror 
 everything rather than tracking a cursor. Same reasoning as the calendar horizon: cheap
 enough that always-correct beats incremental.
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,7 +75,9 @@ def list_all(*, include_completed: bool = True) -> list[Task]:
     return items
 
 
-def create_task(title: str, *, notes: str | None = None, due_iso: str | None = None) -> dict[str, Any]:
+def create_task(
+    title: str, *, notes: str | None = None, due_iso: str | None = None
+) -> dict[str, Any]:
     body: dict[str, Any] = {"title": title}
     if notes:
         body["notes"] = notes

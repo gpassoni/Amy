@@ -18,6 +18,7 @@ Three example kinds come out of it:
 The `prompt` field is reconstructed with the *current* prompt builders on purpose, so an
 exported dataset always reflects how the model is actually asked today.
 """
+
 from __future__ import annotations
 
 import json
@@ -73,9 +74,7 @@ def _loads(raw: str | None) -> Any:
 
 def iter_examples(limit: int = 1000) -> Iterator[Example]:
     """Walk the feedback log, newest first, yielding what can be turned into an example."""
-    rows = get_db().query(
-        "SELECT * FROM feedback ORDER BY id DESC LIMIT ?", (limit,)
-    )
+    rows = get_db().query("SELECT * FROM feedback ORDER BY id DESC LIMIT ?", (limit,))
 
     for row in rows:
         email = _email(row["email_id"])

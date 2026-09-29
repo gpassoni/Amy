@@ -4,6 +4,7 @@ the most thoroughly tested part of it.
 The cases that matter are the ones where a naive implementation looks correct in July and
 breaks in December, or puts an event on the wrong day because it used UTC midnight.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, date, datetime

@@ -12,6 +12,7 @@ in the local mirror, so the Gmail labelling step is skipped for them.
 Timestamps are rewritten relative to now rather than to the fixtures' fixed reference date,
 so "domani alle 14:30" resolves to an actual tomorrow and the proposal is actionable.
 """
+
 from __future__ import annotations
 
 import logging

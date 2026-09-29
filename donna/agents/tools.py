@@ -15,6 +15,7 @@ Tool descriptions are prompt text. They are in Italian, phrased as instructions 
 and deliberately explicit about when *not* to use each one — a local model over-calls tools
 far more often than it under-calls them.
 """
+
 from __future__ import annotations
 
 import json
@@ -175,7 +176,9 @@ def proponi_evento(
     )
 
 
-def sposta_evento(id_evento: str, nuovo_inizio: str | None = None, nuova_fine: str | None = None) -> str:
+def sposta_evento(
+    id_evento: str, nuovo_inizio: str | None = None, nuova_fine: str | None = None
+) -> str:
     start = parse_iso(nuovo_inizio) if nuovo_inizio else None
     finish = parse_iso(nuova_fine) if nuova_fine else None
     if nuovo_inizio and start is None:
@@ -455,7 +458,9 @@ TOOLS: dict[str, Tool] = {
         Tool(
             "rifiuta_proposta",
             "Scarta una proposta. Se dice perché, passalo in motivo: serve per imparare.",
-            _obj({"id_proposta": {"type": "integer"}, "motivo": {"type": "string"}}, ["id_proposta"]),
+            _obj(
+                {"id_proposta": {"type": "integer"}, "motivo": {"type": "string"}}, ["id_proposta"]
+            ),
             rifiuta_proposta,
             mutating=True,
         ),

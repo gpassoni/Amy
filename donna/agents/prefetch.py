@@ -15,6 +15,7 @@ job shrinks to phrasing, which is what it is good at.
 This is the same division as everywhere else in Donna: the model reads and writes language,
 the code does arithmetic and owns the truth.
 """
+
 from __future__ import annotations
 
 import logging
@@ -37,7 +38,14 @@ _AVAILABILITY = re.compile(
 
 # Duration, spelled or numeric: "due ore", "un'ora", "30 minuti", "mezz'ora", "1h".
 _WORD_HOURS = {
-    "un": 1, "una": 1, "un'": 1, "due": 2, "tre": 3, "quattro": 4, "cinque": 5, "sei": 6,
+    "un": 1,
+    "una": 1,
+    "un'": 1,
+    "due": 2,
+    "tre": 3,
+    "quattro": 4,
+    "cinque": 5,
+    "sei": 6,
 }
 _DURATION = re.compile(
     r"\b(un'?|una|due|tre|quattro|cinque|sei|\d{1,2})\s*(or[ae]|h\b|minut[oi]|min\b)", re.I
@@ -97,8 +105,18 @@ _WEEKDAY_REF = re.compile(
     re.I,
 )
 _WEEKDAY_INDEX = {
-    "lunedì": 0, "lunedi": 0, "martedì": 1, "martedi": 1, "mercoledì": 2, "mercoledi": 2,
-    "giovedì": 3, "giovedi": 3, "venerdì": 4, "venerdi": 4, "sabato": 5, "domenica": 6,
+    "lunedì": 0,
+    "lunedi": 0,
+    "martedì": 1,
+    "martedi": 1,
+    "mercoledì": 2,
+    "mercoledi": 2,
+    "giovedì": 3,
+    "giovedi": 3,
+    "venerdì": 4,
+    "venerdi": 4,
+    "sabato": 5,
+    "domenica": 6,
 }
 
 
@@ -114,7 +132,7 @@ def referenced_days(message: str) -> list[int]:
     failure the agenda block exists to prevent.
     """
     text = message or ""
-    found: list[tuple[int, int]] = []          # (position in the message, offset)
+    found: list[tuple[int, int]] = []  # (position in the message, offset)
     for pattern, offset in _DAY_REFS:
         found.extend((m.start(), offset) for m in pattern.finditer(text))
     if _WEEKDAY_REF.search(text):
@@ -162,7 +180,7 @@ def day_agenda(offset: int) -> str:
             f"## Il giorno di cui sta parlando: {label}\n"
             f"In calendario non c'è NIENTE quel giorno. Nessun lavoro, nessun impegno.\n"
             "Se la sua richiesta presuppone un impegno che quel giorno non esiste "
-            "(per esempio \"dopo il lavoro\"), diglielo invece di inventare un orario."
+            '(per esempio "dopo il lavoro"), diglielo invece di inventare un orario.'
         )
 
     lines = []
@@ -171,9 +189,7 @@ def day_agenda(offset: int) -> str:
         if row["all_day"]:
             lines.append(f"- {row['summary']} (tutto il giorno)")
         elif begin and finish:
-            lines.append(
-                f"- {to_local(begin):%H:%M}–{to_local(finish):%H:%M}: {row['summary']}"
-            )
+            lines.append(f"- {to_local(begin):%H:%M}–{to_local(finish):%H:%M}: {row['summary']}")
     last_end = max(
         (parse_iso(r["end_ts"]) for r in rows if r["end_ts"] and not r["all_day"]),
         default=None,
@@ -208,7 +224,9 @@ def for_message(message: str) -> Prefetched | None:
             blocks.append(day_agenda(offset))
             from donna.timeutil import format_it, now_local
 
-            parts.append(f"agenda di {format_it(now_local() + timedelta(days=offset), with_time=False)}")
+            parts.append(
+                f"agenda di {format_it(now_local() + timedelta(days=offset), with_time=False)}"
+            )
         except Exception:
             logger.warning("Prefetch dell'agenda del giorno fallito", exc_info=True)
 

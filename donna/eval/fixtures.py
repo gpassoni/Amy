@@ -13,6 +13,7 @@ resolve.
 `expect_start` is local time, resolved against `received` — which is Monday
 21 September 2026, 09:00 Europe/Rome for every case, so the expectations are readable.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -33,7 +34,7 @@ class EmailCase:
     expect_signal: str
     # Extraction expectation
     expect_commitment: bool
-    expect_start: str | None = None   # "YYYY-MM-DD HH:MM" local, or "YYYY-MM-DD" all-day
+    expect_start: str | None = None  # "YYYY-MM-DD HH:MM" local, or "YYYY-MM-DD" all-day
     expect_title_contains: str | None = None
     note: str = ""
 
@@ -154,7 +155,6 @@ CASES: list[EmailCase] = [
         expect_start="2026-09-25 10:00",
         note="Time range: must start at 10:00 and last 120 minutes.",
     ),
-
     # ---------------------------------------------------------------- NOT commitments
     EmailCase(
         name="promo_scadenza_commerciale",
@@ -169,7 +169,7 @@ CASES: list[EmailCase] = [
         expect_signal="promozione",
         expect_commitment=False,
         note="A commercial deadline is the classic false positive. It has a date and it is "
-             "not his appointment.",
+        "not his appointment.",
     ),
     EmailCase(
         name="newsletter_con_date",

@@ -10,6 +10,7 @@ Two changes from v1:
   * paths come from config instead of module-level os.getenv, so tests and alternate
     profiles work without editing the module.
 """
+
 from __future__ import annotations
 
 import logging
@@ -105,7 +106,9 @@ class GoogleServiceManager:
             self._thread_local.services[key] = build(
                 name, version, credentials=creds, static_discovery=True
             )
-            logger.debug("Built Google service %s v%s for thread %s", name, version, threading.get_ident())
+            logger.debug(
+                "Built Google service %s v%s for thread %s", name, version, threading.get_ident()
+            )
         return self._thread_local.services[key]
 
 

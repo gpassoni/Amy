@@ -6,6 +6,7 @@ the database, and sqlite3 connections are not safe to share across threads.
 
 WAL mode is on, so background sync writing does not block the web UI reading.
 """
+
 from __future__ import annotations
 
 import logging
@@ -56,10 +57,14 @@ class Database:
     def query(self, sql: str, params: Sequence[Any] | dict[str, Any] = ()) -> list[sqlite3.Row]:
         return self.conn.execute(sql, params).fetchall()
 
-    def query_one(self, sql: str, params: Sequence[Any] | dict[str, Any] = ()) -> sqlite3.Row | None:
+    def query_one(
+        self, sql: str, params: Sequence[Any] | dict[str, Any] = ()
+    ) -> sqlite3.Row | None:
         return self.conn.execute(sql, params).fetchone()
 
-    def scalar(self, sql: str, params: Sequence[Any] | dict[str, Any] = (), default: Any = None) -> Any:
+    def scalar(
+        self, sql: str, params: Sequence[Any] | dict[str, Any] = (), default: Any = None
+    ) -> Any:
         row = self.query_one(sql, params)
         return row[0] if row is not None else default
 

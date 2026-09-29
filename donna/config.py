@@ -3,6 +3,7 @@ deeper in the stack.
 
 Testo rivolto all'utente resta in italiano; gli identificatori sono in inglese.
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -25,7 +26,7 @@ class Settings(BaseSettings):
     # may not be. Told only in the persona, the 9b kept answering "sei libera" to a man; it is
     # also stated in the state block, which sits closest to the question.
     user_name: str = "Gabriele"
-    user_grammatical_gender: str = "m"   # "m" or "f"
+    user_grammatical_gender: str = "m"  # "m" or "f"
 
     # --- Interfaces ---
     telegram_bot_token: str = ""

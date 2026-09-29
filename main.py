@@ -7,6 +7,7 @@ are to Google for your own mail, calendar and tasks.
     python -m donna doctor  check the environment first
     python -m donna chat    talk to her from the terminal, no Telegram needed
 """
+
 from __future__ import annotations
 
 import sys

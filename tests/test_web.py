@@ -5,6 +5,7 @@ These are smoke-and-contract tests rather than markup assertions. A template tha
 shows up in the browser — so the point is that every route renders against a real (if small)
 database.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,16 +29,27 @@ def client(db: Database) -> TestClient:
 
 @pytest.fixture()
 def proposal(db: Database) -> int:
-    start = to_utc(now_local().replace(hour=15, minute=0, second=0, microsecond=0) + timedelta(days=2))
+    start = to_utc(
+        now_local().replace(hour=15, minute=0, second=0, microsecond=0) + timedelta(days=2)
+    )
     now = iso_utc(now_utc())
     repo.upsert_email(
-        id="m1", thread_id="t1", from_addr="studio@x.it", from_name="Studio Bianchi",
-        to_addrs="me", subject="Conferma appuntamento", snippet="",
-        body="le confermiamo l'appuntamento di giovedì alle 15:00", received_at=now,
-        label_ids=[], is_unread=True,
+        id="m1",
+        thread_id="t1",
+        from_addr="studio@x.it",
+        from_name="Studio Bianchi",
+        to_addrs="me",
+        subject="Conferma appuntamento",
+        snippet="",
+        body="le confermiamo l'appuntamento di giovedì alle 15:00",
+        received_at=now,
+        label_ids=[],
+        is_unread=True,
     )
     proposal_id = repo.create_proposal(
-        kind="calendar_event", source_type="email", source_id="m1",
+        kind="calendar_event",
+        source_type="email",
+        source_id="m1",
         payload={
             "title": "Igiene dentale",
             "start_ts": iso_utc(start),
@@ -49,7 +61,8 @@ def proposal(db: Database) -> int:
         },
         reasoning="Studio Bianchi indica giovedì alle 15:00",
         evidence_quote="le confermiamo l'appuntamento di giovedì alle 15:00",
-        confidence=0.95, trace_id="t1",
+        confidence=0.95,
+        trace_id="t1",
     )
     return proposal_id
 
@@ -57,8 +70,19 @@ def proposal(db: Database) -> int:
 # ---------------------------------------------------------------- pages render
 @pytest.mark.parametrize(
     "path",
-    ["/", "/agents", "/proposals", "/inbox", "/chat", "/memory", "/training", "/traces",
-     "/health", "/api/activity", "/activity/live"],
+    [
+        "/",
+        "/agents",
+        "/proposals",
+        "/inbox",
+        "/chat",
+        "/memory",
+        "/training",
+        "/traces",
+        "/health",
+        "/api/activity",
+        "/activity/live",
+    ],
 )
 def test_every_page_renders(client: TestClient, proposal: int, path: str):
     response = client.get(path)
@@ -137,8 +161,11 @@ def test_accept_creates_the_event_and_clears_the_proposal(client: TestClient, pr
 
 
 def test_reject_keeps_the_reason(client: TestClient, proposal: int, db: Database):
-    client.post(f"/proposals/{proposal}/reject", data={"note": "lo pago sempre a fine mese"},
-                follow_redirects=False)
+    client.post(
+        f"/proposals/{proposal}/reject",
+        data={"note": "lo pago sempre a fine mese"},
+        follow_redirects=False,
+    )
     assert repo.get_proposal(proposal)["state"] == "rejected"
     row = db.query_one("SELECT * FROM feedback WHERE kind = 'proposal_reject'")
     assert row["note"] == "lo pago sempre a fine mese"
@@ -186,14 +213,20 @@ def test_an_edit_with_an_unparseable_date_changes_nothing(client: TestClient, pr
     assert repo.get_proposal(proposal)["state"] == "pending"
 
 
-def test_reclassifying_from_the_inbox_records_feedback(client: TestClient, proposal: int, db: Database):
+def test_reclassifying_from_the_inbox_records_feedback(
+    client: TestClient, proposal: int, db: Database
+):
     repo.set_email_category(
-        "m1", category="inutile", confidence=0.9, reason="x", model="m", trace_id="t",
+        "m1",
+        category="inutile",
+        confidence=0.9,
+        reason="x",
+        model="m",
+        trace_id="t",
         signal="promozione",
     )
     with patch("donna.pipeline.triage.gmail.apply_category_label", return_value=True):
-        client.post("/inbox/m1/reclassify", data={"category": "importante"},
-                    follow_redirects=False)
+        client.post("/inbox/m1/reclassify", data={"category": "importante"}, follow_redirects=False)
 
     assert repo.get_email("m1")["category"] == "importante"
     row = db.query_one("SELECT * FROM feedback WHERE kind = 'reclassify'")
@@ -206,8 +239,9 @@ def test_memory_can_be_added_and_forgotten(client: TestClient, db: Database):
 
     with patch.object(memory, "get_llm") as llm:
         llm.return_value.embed_one.return_value = [0.1] * 8
-        client.post("/memory/add", data={"text": "vado in palestra il martedì"},
-                    follow_redirects=False)
+        client.post(
+            "/memory/add", data={"text": "vado in palestra il martedì"}, follow_redirects=False
+        )
 
     facts = memory.all_facts()
     assert len(facts) == 1

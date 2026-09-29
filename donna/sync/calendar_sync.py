@@ -4,6 +4,7 @@ Re-lists the whole horizon window each pass and reconciles. See donna/google/cal
 for why this beats syncToken here: a bounded window is cheap, and re-listing it means the
 slice of calendar Donna reasons over is always exactly right, deletions included.
 """
+
 from __future__ import annotations
 
 import json

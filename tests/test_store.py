@@ -2,6 +2,7 @@
 idempotent, the FTS indexes track their content tables, and the partial indexes that back
 the pipeline queues actually exist.
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -142,10 +143,7 @@ def test_upsert_round_trip_replaces_the_row(db: Database):
 
 
 def test_pipeline_queue_indexes_exist(db: Database):
-    names = {
-        r["name"]
-        for r in db.query("SELECT name FROM sqlite_master WHERE type='index'")
-    }
+    names = {r["name"] for r in db.query("SELECT name FROM sqlite_master WHERE type='index'")}
     assert "idx_emails_untriaged" in names
     assert "idx_emails_unextracted" in names
     assert "idx_proposals_pending" in names

@@ -10,6 +10,7 @@ sampling are configurable), and an iteration budget. Nothing more. The specialis
 matters is the tool set — a local model picks correctly among four tools and badly among
 fifteen, which is the real reason for splitting agents at all.
 """
+
 from __future__ import annotations
 
 import logging
@@ -63,8 +64,8 @@ SUGLI STRUMENTI:
 @dataclass(slots=True)
 class AgentSpec:
     name: str
-    task: str                      # registry task, so model and sampling are configurable
-    instructions: str              # what this agent is for
+    task: str  # registry task, so model and sampling are configurable
+    instructions: str  # what this agent is for
     tool_names: list[str] = field(default_factory=list)
     max_iterations: int = 3
 
@@ -140,8 +141,7 @@ def run(
             "content": (
                 "# Stato attuale, aggiornato adesso\n"
                 "Questi dati vengono dal database in questo momento. Se contraddicono qualcosa "
-                "che hai detto prima nella conversazione, vale quello che leggi qui.\n\n"
-                + context
+                "che hai detto prima nella conversazione, vale quello che leggi qui.\n\n" + context
             ),
         },
         {"role": "user", "content": user_message},
@@ -184,9 +184,7 @@ def run(
             # returning nothing — the tool output is already in the transcript, so the model
             # has everything it needs to summarise.
             try:
-                final = llm.chat(
-                    spec.task, messages, tools=None, parent_trace_id=parent_trace_id
-                )
+                final = llm.chat(spec.task, messages, tools=None, parent_trace_id=parent_trace_id)
                 reply.trace_ids.append(final.trace_id)
                 reply.text = final.content.strip()
             except LLMError:
@@ -200,7 +198,12 @@ def run(
     # perfectly able to take, not to force a guess.
     if expect_mutation and not reply.mutated and not _claims_without_doing(reply):
         _nudge_to_act(
-            llm, spec, messages, schemas, reply, parent_trace_id=parent_trace_id,
+            llm,
+            spec,
+            messages,
+            schemas,
+            reply,
+            parent_trace_id=parent_trace_id,
             instruction=(
                 "Non hai chiamato nessuno strumento, quindi non è stato preparato niente. "
                 "Se hai abbastanza informazioni, chiama adesso lo strumento giusto: la "
@@ -219,7 +222,12 @@ def run(
         )
         reply.claimed_without_acting = True
         acted = _nudge_to_act(
-            llm, spec, messages, schemas, reply, parent_trace_id=parent_trace_id,
+            llm,
+            spec,
+            messages,
+            schemas,
+            reply,
+            parent_trace_id=parent_trace_id,
             instruction=(
                 "Fermati: hai scritto di aver fatto qualcosa ma non hai chiamato nessuno "
                 "strumento, quindi non è successo niente. Chiama adesso lo strumento "

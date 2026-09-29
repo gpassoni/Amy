@@ -14,6 +14,7 @@ Every trace produced inside the block is linked to the activity by passing `run.
 parent trace id, so the dashboard can go from "the inbox agent answered this" down to the
 exact prompt that produced it.
 """
+
 from __future__ import annotations
 
 import json

@@ -4,6 +4,7 @@ The guard gets the most attention here. A bot token is a bearer credential — a
 the bot can message it — and Donna reads a real mailbox and writes to a real calendar. A hole
 in `_authorised` is not a cosmetic bug.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -33,9 +34,7 @@ def test_callback_data_fits_telegrams_limit():
     assert len(data.encode("utf-8")) <= 64
 
 
-@pytest.mark.parametrize(
-    "bad", ["", "nonsense", "p:ok", "p:ok:abc", "p:ok:1:2", None, "::"]
-)
+@pytest.mark.parametrize("bad", ["", "nonsense", "p:ok", "p:ok:abc", "p:ok:1:2", None, "::"])
 def test_unparseable_callbacks_return_none(bad):
     # Old messages keep working buttons across restarts, so junk is expected input.
     assert keyboards.parse(bad) is None
@@ -62,7 +61,9 @@ def test_the_destructive_button_is_not_alone_on_its_row():
 # ---------------------------------------------------------------- cards
 def _proposal(db: Database, **payload_overrides) -> object:
     # Pinned to a known local time so assertions about the rendered clock time mean something.
-    start = to_utc(now_local().replace(hour=15, minute=0, second=0, microsecond=0) + timedelta(days=2))
+    start = to_utc(
+        now_local().replace(hour=15, minute=0, second=0, microsecond=0) + timedelta(days=2)
+    )
     payload = {
         "title": "Igiene dentale",
         "start_ts": iso_utc(start),
@@ -96,9 +97,17 @@ def test_proposal_card_names_the_thing_and_the_time(db: Database):
 def test_proposal_card_shows_the_sender_when_the_email_is_mirrored(db: Database):
     now = iso_utc(now_utc())
     repo.upsert_email(
-        id="m1", thread_id="t1", from_addr="studio@x.it", from_name="Studio Bianchi",
-        to_addrs="me", subject="Conferma appuntamento", snippet="", body="",
-        received_at=now, label_ids=[], is_unread=True,
+        id="m1",
+        thread_id="t1",
+        from_addr="studio@x.it",
+        from_name="Studio Bianchi",
+        to_addrs="me",
+        subject="Conferma appuntamento",
+        snippet="",
+        body="",
+        received_at=now,
+        label_ids=[],
+        is_unread=True,
     )
     text = cards.proposal_card(_proposal(db))
     assert "Studio Bianchi" in text
@@ -108,10 +117,19 @@ def test_proposal_card_shows_the_sender_when_the_email_is_mirrored(db: Database)
 def test_a_low_confidence_proposal_says_so(db: Database):
     start = now_utc() + timedelta(days=2)
     proposal_id = repo.create_proposal(
-        kind="calendar_event", source_type="email", source_id="m9",
-        payload={"title": "Forse qualcosa", "start_ts": iso_utc(start),
-                 "end_ts": iso_utc(start + timedelta(hours=1)), "all_day": False},
-        reasoning="stimata", evidence_quote=None, confidence=0.45, trace_id="t2",
+        kind="calendar_event",
+        source_type="email",
+        source_id="m9",
+        payload={
+            "title": "Forse qualcosa",
+            "start_ts": iso_utc(start),
+            "end_ts": iso_utc(start + timedelta(hours=1)),
+            "all_day": False,
+        },
+        reasoning="stimata",
+        evidence_quote=None,
+        confidence=0.45,
+        trace_id="t2",
     )
     text = cards.proposal_card(repo.get_proposal(proposal_id))
     # Presenting a shaky guess with the same certainty as a solid one is how you train
@@ -131,7 +149,9 @@ def test_an_all_day_proposal_reads_as_a_day_not_a_time(db: Database):
         all_day=True,
         title="Pagamento bollo",
         start_ts=iso_utc(start.replace(hour=0, minute=0, second=0, microsecond=0)),
-        end_ts=iso_utc(start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)),
+        end_ts=iso_utc(
+            start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        ),
     )
     assert "tutto il giorno" in cards.proposal_card(row)
 
