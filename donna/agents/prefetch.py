@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 from datetime import timedelta
 
 from donna.agents import tools as toolkit
@@ -101,19 +102,40 @@ _WEEKDAY_INDEX = {
 }
 
 
-def referenced_day(message: str) -> int | None:
-    """Offset in days of the day the message is about, if it names one."""
+# More than this and the block stops being a fact sheet and becomes the whole week again.
+MAX_REFERENCED_DAYS = 4
+
+
+def referenced_days(message: str) -> list[int]:
+    """Offsets in days of every day the message names, in the order they are mentioned.
+
+    Every one, not the first: «martedì dopo il lavoro… e giovedì in piscina» is about two days,
+    and stating only Tuesday's agenda leaves Thursday to be guessed — which is exactly the
+    failure the agenda block exists to prevent.
+    """
+    text = message or ""
+    found: list[tuple[int, int]] = []          # (position in the message, offset)
     for pattern, offset in _DAY_REFS:
-        if pattern.search(message or ""):
-            return offset
-    match = _WEEKDAY_REF.search(message or "")
-    if match:
+        found.extend((m.start(), offset) for m in pattern.finditer(text))
+    if _WEEKDAY_REF.search(text):
         from donna.timeutil import now_local
 
-        target = _WEEKDAY_INDEX[match.group(1).lower()]
-        ahead = (target - now_local().weekday()) % 7
-        return ahead or 7
-    return None
+        weekday_today = now_local().weekday()
+        for m in _WEEKDAY_REF.finditer(text):
+            ahead = (_WEEKDAY_INDEX[m.group(1).lower()] - weekday_today) % 7
+            found.append((m.start(), ahead or 7))
+
+    offsets: list[int] = []
+    for _, offset in sorted(found):
+        if offset not in offsets:
+            offsets.append(offset)
+    return offsets[:MAX_REFERENCED_DAYS]
+
+
+def referenced_day(message: str) -> int | None:
+    """The first day the message names, if any."""
+    days = referenced_days(message)
+    return days[0] if days else None
 
 
 def day_agenda(offset: int) -> str:
@@ -164,19 +186,37 @@ def day_agenda(offset: int) -> str:
     return f"## Il giorno di cui sta parlando: {label}\n" + "\n".join(lines) + tail
 
 
-def for_message(message: str) -> str | None:
-    """A context block of precomputed facts, or None when nothing applies."""
-    blocks: list[str] = []
+@dataclass(slots=True)
+class Prefetched:
+    """What was computed, and a plain-language list of what that was.
 
-    offset = referenced_day(message)
-    if offset is not None:
+    The labels are shown in the dashboard, so it is always possible to see exactly which facts
+    were handed to the model instead of a bare "precomputed" flag.
+    """
+
+    text: str
+    parts: list[str]
+
+
+def for_message(message: str) -> Prefetched | None:
+    """A context block of facts read from the calendar in code, or None when nothing applies."""
+    blocks: list[str] = []
+    parts: list[str] = []
+
+    for offset in referenced_days(message):
         try:
             blocks.append(day_agenda(offset))
+            from donna.timeutil import format_it, now_local
+
+            parts.append(f"agenda di {format_it(now_local() + timedelta(days=offset), with_time=False)}")
         except Exception:
             logger.warning("Prefetch dell'agenda del giorno fallito", exc_info=True)
 
+    def _done() -> Prefetched | None:
+        return Prefetched("\n\n".join(blocks), parts) if blocks else None
+
     if not wants_availability(message):
-        return "\n\n".join(blocks) if blocks else None
+        return _done()
 
     minutes = parse_duration_minutes(message)
     days = parse_horizon_days(message)
@@ -185,7 +225,7 @@ def for_message(message: str) -> str | None:
     except Exception:
         # A prefetch failure must not fail the turn; the model still has the world state.
         logger.warning("Prefetch degli slot liberi fallito", exc_info=True)
-        return "\n\n".join(blocks) if blocks else None
+        return _done()
 
     logger.info("Prefetch slot: %d min entro %d giorni", minutes, days)
     blocks.append(
@@ -195,4 +235,5 @@ def for_message(message: str) -> str | None:
         "inventarne altri e non aggiungere spiegazioni su cosa c'è prima o dopo.\n\n"
         f"{slots}"
     )
-    return "\n\n".join(blocks)
+    parts.append(f"slot liberi da {minutes} min nei prossimi {days} giorni")
+    return _done()

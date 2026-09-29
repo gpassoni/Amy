@@ -112,6 +112,7 @@ def run(
     history: list[dict[str, Any]] | None = None,
     parent_trace_id: str | None = None,
     expect_mutation: bool = False,
+    guard_claims: bool = True,
 ) -> AgentReply:
     """Run one agent turn, including any tool round trips.
 
@@ -120,6 +121,12 @@ def run(
     checked postcondition — see `_nudge_to_act`. Asked to schedule a motorbike wash, the
     model twice replied with a well-formed proposal in prose and called nothing, which from
     the user's side is indistinguishable from having been ignored.
+
+    `guard_claims` turns the "claimed an action without doing it" check on or off. It is off for
+    plain questions: asked «cosa ho in calendario?», a correct answer may well say «ho preparato
+    una proposta per spostarla» — about a proposal that exists from an earlier turn — and the
+    check, which only knows about tools called in *this* turn, would replace a true answer with a
+    false confession.
     """
     llm = get_llm()
     # Order matters: persona, then the conversation, then the *current* state, then the
@@ -205,7 +212,7 @@ def run(
 
     # Last line of defence: never let a claimed action stand when no tool ran. One retry,
     # with the contradiction stated plainly — it usually calls the tool the second time.
-    if _claims_without_doing(reply):
+    if guard_claims and _claims_without_doing(reply):
         logger.warning(
             "Agent %s claimed an action without calling a tool: %r",
             spec.name,

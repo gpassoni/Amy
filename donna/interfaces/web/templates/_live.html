@@ -36,7 +36,7 @@
           <span class="what">
             <a href="/activity/{{ run.id }}">{{ run.summary or run.kind }}</a>
             {% if d.route_via %}<span class="chip {{ d.route_via }}">{{ d.route_via }}</span>{% endif %}
-            {% if d.prefetched %}<span class="chip tool">precalcolato</span>{% endif %}
+            {% if d.prefetched %}<span class="chip tool" title="Il codice ha letto questi dati dal calendario e li ha passati al modello come fatto: {{ d.prefetched | join(', ') if d.prefetched is iterable and d.prefetched is not string else '' }}">calendario letto dal codice</span>{% endif %}
             {% for t in d.tools or [] %}<span class="chip tool">{{ t }}</span>{% endfor %}
           </span>
           <span class="ms">{{ run.duration_ms or 0 }} ms</span>

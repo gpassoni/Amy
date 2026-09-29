@@ -46,9 +46,13 @@ ASSISTANT_HISTORY_CHARS = 220
 # Intents that are a request to change something rather than to look something up.
 MUTATION_INTENTS = {"schedule_mutate", "task_mutate", "proposal_action"}
 
-# Intents with a deterministic structured path that does not depend on the model choosing
-# to emit a tool call. See donna/agents/fallback.py.
-FALLBACK_INTENTS = {"schedule_mutate"}
+# Intents that only look something up. The user asked for no action, so a reply that says «ho
+# preparato…» is referring to something that already exists, not lying about this turn.
+QUERY_INTENTS = {"schedule_query", "inbox_query", "task_query", "briefing"}
+
+# Intents whose changes are extracted as a structured plan rather than left to the model
+# choosing to emit tool calls. See donna/agents/fallback.py.
+STRUCTURED_INTENTS = {"schedule_mutate"}
 
 
 @dataclass(slots=True)
@@ -103,47 +107,54 @@ def handle(
         # fact. See donna/agents/prefetch.py.
         precomputed = prefetch.for_message(message)
         if precomputed:
-            context = f"{context}\n\n{precomputed}"
-            run.note(prefetched=True)
+            context = f"{context}\n\n{precomputed.text}"
+            # What was handed over, spelled out, so the dashboard can show it verbatim.
+            run.note(prefetched=precomputed.parts, prefetched_text=precomputed.text)
 
         history = _history_for_model(
             repo.recent_turns(channel, chat_id, limit=HISTORY_TURNS)
         )
 
-        # The router already decided this was a request to change something; tell the agent
-        # loop, so "did you actually call a tool" becomes a checked postcondition.
-        #
-        # Except for schedule_mutate, where the nudge is skipped: the model refused to emit a
-        # tool call three times running for exactly this intent, once while explicitly
-        # agreeing that it should. The structured fallback below handles it deterministically,
-        # so spending a round trip on a retry that is not going to work just adds three
-        # seconds to every "put this in my calendar" (12.3 s measured, against ~5 s without).
         expects_mutation = decision.intent in MUTATION_INTENTS
-        has_fallback = decision.intent in FALLBACK_INTENTS
-        reply: AgentReply = run_agent(
-            spec,
-            message,
-            context=context,
-            history=history,
-            parent_trace_id=run.id,
-            expect_mutation=expects_mutation and not has_fallback,
-        )
-        # The tool path has had its chance, including one explicit nudge. If a calendar change
-        # was asked for and still nothing was created, stop asking the model to *decide* to
-        # call a tool and ask it to fill a schema instead — a grammar-constrained answer it
-        # cannot refuse. See donna/agents/fallback.py for what prompted this.
-        used_fallback = False
-        if expects_mutation and not reply.mutated and has_fallback:
+        has_plan = decision.intent in STRUCTURED_INTENTS
+
+        reply: AgentReply | None = None
+        used_plan = False
+
+        # A calendar change goes through the structured plan *first*, and the agent loop is not
+        # allowed to author proposals at all for it.
+        #
+        # It used to be the other way round: the agent loop ran, and the structured path was
+        # only a fallback for when no tool had been called. That left a hole exactly where it
+        # hurt — asked for two changes, the model called the tool once, "something was done",
+        # the fallback stayed asleep, and the second change vanished with no trace. Deciding
+        # to emit tool calls is the unreliable step (see donna/agents/fallback.py), so it is
+        # not the step a request with several parts should depend on.
+        if has_plan:
             outcome = fallback.propose_from_request(
                 message, context=context, parent_trace_id=run.id
             )
             if outcome is not None:
-                used_fallback = True
-                reply.text = outcome.text
-                if outcome.proposal_id is not None:
-                    reply.tool_calls.append(
-                        ("proponi_evento", f"PROPOSTA #{outcome.proposal_id}")
-                    )
+                used_plan = True
+                reply = AgentReply(
+                    text=outcome.text,
+                    agent=spec.name,
+                    trace_ids=[outcome.trace_id] if outcome.trace_id else [],
+                    tool_calls=[(tool, f"PROPOSTA #{pid}") for pid, tool in outcome.made],
+                )
+
+        # No plan came out of it (a question that only looked like a change, or the model
+        # failed): the ordinary conversational path answers.
+        if reply is None:
+            reply = run_agent(
+                spec,
+                message,
+                context=context,
+                history=history,
+                parent_trace_id=run.id,
+                expect_mutation=expects_mutation and not has_plan,
+                guard_claims=decision.intent not in QUERY_INTENTS,
+            )
 
         run.note(
             tools=[name for name, _ in reply.tool_calls],
@@ -152,7 +163,7 @@ def handle(
             expected_mutation=expects_mutation,
             mutated=reply.mutated,
             claimed_without_acting=reply.claimed_without_acting,
-            used_fallback=used_fallback,
+            structured_plan=used_plan,
         )
         run.describe(f"{decision.intent} → {spec.name}: {message[:80]}")
 

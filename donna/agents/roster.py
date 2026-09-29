@@ -110,12 +110,14 @@ Hai tutti gli strumenti, quindi scegli con attenzione — nella maggior parte de
 risposta è già nel contesto e non serve chiamare nulla.
 
 Se la richiesta tocca più cose insieme (per esempio spostare un impegno e segnare una task),
-fai una cosa alla volta e riporta il risultato di entrambe.""",
+chiama lo strumento giusto per CIASCUNA, tutti nello stesso giro, e riporta il risultato di
+ognuna. Non fermarti alla prima: conta le cose che ha chiesto e verifica di averle fatte tutte.""",
     tool_names=[
         "elenca_eventi",
         "trova_slot_liberi",
         "proponi_evento",
         "sposta_evento",
+        "elimina_evento",
         "email_per_categoria",
         "cerca_email",
         "elenca_task",

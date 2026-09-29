@@ -38,9 +38,22 @@
             </td></tr>
       {% endif %}
       {% if d.prefetched %}
-        <tr><td class="mono">precalcolato</td>
-            <td>slot liberi calcolati in codice e passati come fatto
-                <span class="dim">— il modello non doveva deciderlo</span></td></tr>
+        <tr><td class="mono">dati dal calendario</td>
+            <td>
+              {% if d.prefetched is iterable and d.prefetched is not string %}{{ d.prefetched | join(', ') }}
+              {% else %}letti dal codice{% endif %}
+              <span class="dim">— letti dal calendario reale dal codice, senza il modello, e passati come fatto: il modello deve solo formulare la risposta</span>
+              {% if d.prefetched_text %}
+                <details style="margin-top:6px">
+                  <summary class="dim" style="cursor:pointer">vedi esattamente cosa gli è stato passato</summary>
+                  <pre>{{ d.prefetched_text }}</pre>
+                </details>
+              {% endif %}
+            </td></tr>
+      {% endif %}
+      {% if d.structured_plan %}
+        <tr><td class="mono">piano</td>
+            <td>richiesta trasformata in azioni strutturate <span class="dim">— una proposta per ogni modifica, controllate dal codice</span></td></tr>
       {% endif %}
       {% if d.tools %}
         <tr><td class="mono">strumenti</td>

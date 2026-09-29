@@ -283,6 +283,38 @@ def events_between(start_iso: str, end_iso: str, *, include_cancelled: bool = Fa
     return get_db().query(sql, (start_iso, end_iso))
 
 
+def get_event(event_id: str) -> sqlite3.Row | None:
+    """A live (not cancelled) event from the mirror, by id."""
+    return get_db().query_one(
+        "SELECT * FROM events WHERE id = ? AND status != 'cancelled'", (event_id,)
+    )
+
+
+def find_events_by_id_prefix(prefix: str, *, limit: int = 2) -> list[sqlite3.Row]:
+    """Live events whose id starts with `prefix`. `substr` rather than LIKE: ids contain `_`."""
+    return get_db().query(
+        "SELECT * FROM events WHERE substr(id, 1, ?) = ? AND status != 'cancelled' LIMIT ?",
+        (len(prefix), prefix, limit),
+    )
+
+
+def apply_event_move(event_id: str, start_ts: str, end_ts: str) -> None:
+    """Reflect an accepted move in the mirror straight away, rather than at the next sync."""
+    get_db().execute(
+        "UPDATE events SET start_ts = ?, end_ts = ?, start_raw = ?, end_raw = ?, updated_at = ?"
+        " WHERE id = ?",
+        (start_ts, end_ts, start_ts, end_ts, iso_utc(now_utc()), event_id),
+    )
+
+
+def mark_event_cancelled(event_id: str) -> None:
+    """Reflect an accepted deletion in the mirror straight away."""
+    get_db().execute(
+        "UPDATE events SET status = 'cancelled', updated_at = ? WHERE id = ?",
+        (iso_utc(now_utc()), event_id),
+    )
+
+
 def find_similar_event(start_iso: str, end_iso: str, title: str) -> sqlite3.Row | None:
     """An event already near this slot with a comparable title.
 

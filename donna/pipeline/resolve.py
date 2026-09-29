@@ -54,6 +54,12 @@ def describe(row) -> str:
     payload = repo.proposal_payload(row)
     start, end = parse_iso(payload.get("start_ts")), parse_iso(payload.get("end_ts"))
     title = payload.get("title") or "(senza titolo)"
+    if row["kind"] == "calendar_move":
+        old_start, old_end = parse_iso(payload.get("old_start_ts")), parse_iso(payload.get("old_end_ts"))
+        before = f"{format_range_it(old_start, old_end)} → " if old_start else ""
+        return f"Sposta «{title}»: {before}{format_range_it(start, end) if start else '?'}"
+    if row["kind"] == "calendar_delete":
+        return f"Elimina «{title}»" + (f" ({format_range_it(start, end)})" if start else "")
     if start is None:
         return title
     if payload.get("all_day"):
@@ -79,10 +85,12 @@ def accept(proposal_id: int, *, via: str = "cli") -> Resolution:
     # could not retry. (Found by a test: ProposalError escaped the handler below, which only
     # released the claim for Google-side failures.)
     start = end = None
-    if row["kind"] == "calendar_event":
+    if row["kind"] in ("calendar_event", "calendar_move"):
         start, end = _payload_window(payload)
-    elif row["kind"] != "task":
+    elif row["kind"] not in ("task", "calendar_delete"):
         raise ProposalError(f"tipo di proposta non gestito: {row['kind']!r}")
+    if row["kind"] in ("calendar_move", "calendar_delete") and not payload.get("event_id"):
+        raise ProposalError("la proposta non dice quale evento toccare")
 
     # Claim the proposal. If this fails, someone else already took it.
     if not repo.resolve_proposal(proposal_id, state="accepted", via=via):
@@ -102,6 +110,13 @@ def accept(proposal_id: int, *, via: str = "cli") -> Resolution:
                 reminder_minutes=payload.get("reminder_minutes"),
             )
             result_ref, link = created.get("id"), created.get("htmlLink")
+        elif row["kind"] == "calendar_move":
+            assert start is not None and end is not None
+            updated = calendar.update_event(payload["event_id"], start_iso=start, end_iso=end)
+            result_ref, link = payload["event_id"], updated.get("htmlLink")
+        elif row["kind"] == "calendar_delete":
+            calendar.delete_event(payload["event_id"])
+            result_ref, link = payload["event_id"], None
         elif row["kind"] == "task":
             created = tasks.create_task(
                 payload.get("title") or "Da fare",
@@ -121,6 +136,12 @@ def accept(proposal_id: int, *, via: str = "cli") -> Resolution:
         raise
 
     repo.attach_proposal_result(proposal_id, result_ref)
+    # Google has already done it; the mirror is updated outside the try above so that a local
+    # failure cannot reopen a proposal whose effect has landed.
+    if row["kind"] == "calendar_move":
+        repo.apply_event_move(payload["event_id"], start, end)
+    elif row["kind"] == "calendar_delete":
+        repo.mark_event_cancelled(payload["event_id"])
     if row["kind"] == "calendar_event" and result_ref:
         # Record it in the mirror now, with its provenance, rather than leaving it to the
         # next calendar sync. The sync inserts what Google reports, which does not include
@@ -144,7 +165,7 @@ def accept(proposal_id: int, *, via: str = "cli") -> Resolution:
         original_output=row["payload_json"],
     )
 
-    logger.info("Proposta %d accettata, creato %s", proposal_id, result_ref)
+    logger.info("Proposta %d accettata (%s), %s", proposal_id, row["kind"], result_ref)
     return Resolution(proposal_id, "accepted", describe(row), result_ref, link)
 
 

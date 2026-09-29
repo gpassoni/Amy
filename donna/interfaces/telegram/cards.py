@@ -23,7 +23,16 @@ def proposal_card(row) -> str:
     start, end = parse_iso(payload.get("start_ts")), parse_iso(payload.get("end_ts"))
     title = payload.get("title") or "(senza titolo)"
 
-    lines = ["📌 Ho trovato un impegno in una email.", "", title]
+    if row["kind"] in ("calendar_move", "calendar_delete"):
+        # These come from a request in chat, and the card has to say what will change.
+        return f"📌 Da confermare\n\n{resolve.describe(row)}"[:MAX_LEN]
+
+    header = (
+        "📌 Ho trovato un impegno in una email."
+        if row["source_type"] == "email"
+        else "📌 Da confermare."
+    )
+    lines = [header, "", title]
 
     if start is not None:
         when = (
@@ -93,6 +102,8 @@ def resolved_card(row, resolution: resolve.Resolution) -> str:
         )
 
     if resolution.state == "accepted":
+        if row["kind"] in ("calendar_move", "calendar_delete"):
+            return f"✅ Fatto: {resolve.describe(row)}"
         return f"✅ In calendario: {title}\n🕐 {when}"
     if resolution.state == "rejected":
         return f"🗑 Scartata: {title}"

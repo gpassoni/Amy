@@ -23,11 +23,10 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Callable
 
-from donna.google import calendar as gcal
+from donna.agents import calendar_actions
 from donna.google import tasks as gtasks
 from donna.pipeline import resolve as resolve_pipeline
 from donna.store import repo
-from donna.store.db import get_db
 from donna.timeutil import (
     day_bounds_utc,
     format_it,
@@ -164,51 +163,43 @@ def proponi_evento(
         return f"Non ho capito la data di inizio: {inizio!r}. Serve il formato YYYY-MM-DDTHH:MM."
     finish = parse_iso(fine) if fine else start + timedelta(hours=1)
 
-    payload: dict[str, Any] = {
-        "kind": "appuntamento",
-        "title": titolo,
-        "start_ts": iso_utc(start),
-        "end_ts": iso_utc(finish),
-        "all_day": False,
-        "location": luogo,
-    }
-    if promemoria_minuti:
-        payload["reminder_minutes"] = int(promemoria_minuti)
-
-    proposal_id = repo.create_proposal(
-        kind="calendar_event",
-        source_type="conversation",
-        source_id=None,
-        payload=payload,
-        reasoning="Me l'hai chiesto tu in chat.",
-        confidence=1.0,
+    prepared = calendar_actions.propose_create(
+        title=titolo, start=start, end=finish, location=luogo, reminder_minutes=promemoria_minuti
     )
-    if proposal_id is None:
+    if prepared.proposal_id is None:
         return "Ne avevo già preparata una identica."
-
-    reminder = (
-        f", con promemoria {promemoria_minuti} minuti prima" if promemoria_minuti else ""
-    )
     return (
-        f"PROPOSTA #{proposal_id}: {titolo} — {format_range_it(start, finish)}{reminder}. "
+        f"PROPOSTA #{prepared.proposal_id}: {prepared.description}. "
         "Non è ancora in calendario: serve la conferma."
     )
 
 
-def sposta_evento(id_evento: str, nuovo_inizio: str, nuova_fine: str | None = None) -> str:
-    start = parse_iso(nuovo_inizio)
-    if start is None:
+def sposta_evento(id_evento: str, nuovo_inizio: str | None = None, nuova_fine: str | None = None) -> str:
+    start = parse_iso(nuovo_inizio) if nuovo_inizio else None
+    finish = parse_iso(nuova_fine) if nuova_fine else None
+    if nuovo_inizio and start is None:
         return f"Non ho capito la nuova data: {nuovo_inizio!r}."
-    finish = parse_iso(nuova_fine) if nuova_fine else start + timedelta(hours=1)
-    gcal.update_event(id_evento, start_iso=iso_utc(start), end_iso=iso_utc(finish))
-    return f"Spostato a {format_range_it(start, finish)}."
+    if nuova_fine and finish is None:
+        return f"Non ho capito la nuova ora di fine: {nuova_fine!r}."
+    if start is None and finish is None:
+        return "Serve almeno un nuovo inizio o una nuova fine."
+    try:
+        prepared = calendar_actions.propose_move(event_id=id_evento, start=start, end=finish)
+    except calendar_actions.ActionError as exc:
+        return f"Non posso spostarlo: {exc}."
+    if prepared.proposal_id is None:
+        return "Ne avevo già preparata una identica."
+    return f"PROPOSTA #{prepared.proposal_id}: {prepared.description}. Non è ancora cambiato niente: serve la conferma."
 
 
 def elimina_evento(id_evento: str) -> str:
-    # Read the title before deleting, so the confirmation names the thing rather than an id.
-    row = get_db().query_one("SELECT summary FROM events WHERE id = ?", (id_evento,))
-    gcal.delete_event(id_evento)
-    return f"Eliminato: {row['summary'] if row else id_evento}."
+    try:
+        prepared = calendar_actions.propose_delete(event_id=id_evento)
+    except calendar_actions.ActionError as exc:
+        return f"Non posso eliminarlo: {exc}."
+    if prepared.proposal_id is None:
+        return "Ne avevo già preparata una identica."
+    return f"PROPOSTA #{prepared.proposal_id}: {prepared.description}. Non è ancora cambiato niente: serve la conferma."
 
 
 # ================================================================== inbox
@@ -305,7 +296,7 @@ def accetta_proposta(id_proposta: int) -> str:
         result = resolve_pipeline.accept(int(id_proposta), via="chat")
     except resolve_pipeline.ProposalError as exc:
         return f"Non ho potuto accettarla: {exc}"
-    return f"Aggiunto in calendario: {result.message}"
+    return f"Fatto: {result.message}"
 
 
 def rifiuta_proposta(id_proposta: int, motivo: str | None = None) -> str:
@@ -375,21 +366,23 @@ TOOLS: dict[str, Tool] = {
         ),
         Tool(
             "sposta_evento",
-            "Sposta un evento esistente. Serve l'id, che trovi con elenca_eventi.",
+            "Prepara lo spostamento di un evento esistente, o il cambio della sua ora di fine: "
+            "crea una proposta che lui conferma. Serve l'id, che trovi con elenca_eventi. Se "
+            "cambia solo la fine, passa solo nuova_fine.",
             _obj(
                 {
                     "id_evento": {"type": "string"},
                     "nuovo_inizio": {"type": "string", "description": "YYYY-MM-DDTHH:MM"},
-                    "nuova_fine": {"type": "string"},
+                    "nuova_fine": {"type": "string", "description": "YYYY-MM-DDTHH:MM"},
                 },
-                ["id_evento", "nuovo_inizio"],
+                ["id_evento"],
             ),
             sposta_evento,
             mutating=True,
         ),
         Tool(
             "elimina_evento",
-            "Cancella un evento dal calendario. Serve l'id. Chiedi conferma prima se hai dubbi.",
+            "Prepara la cancellazione di un evento: crea una proposta che lui conferma. Serve l'id.",
             _obj({"id_evento": {"type": "string"}}, ["id_evento"]),
             elimina_evento,
             mutating=True,

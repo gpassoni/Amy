@@ -31,7 +31,9 @@ CONFIDENCE_FLOOR = 0.45
 ROUTER_SYSTEM = """Classifica l'intento del messaggio. Una sola etichetta.
 
 schedule_query   vuole sapere cosa ha in programma, quando è libero, quando è qualcosa
-schedule_mutate  vuole creare, spostare o cancellare un impegno
+schedule_mutate  vuole creare, spostare o cancellare un impegno, anche quando lo dice come un
+                 fatto ("mercoledì finisco alle 15", "la riunione è annullata"): l'orario in
+                 calendario va cambiato
 inbox_query      vuole sapere della posta: cosa è arrivato, da chi, riassunti
 task_query       vuole sapere le cose da fare
 task_mutate      vuole aggiungere o completare una cosa da fare
@@ -45,6 +47,9 @@ ESEMPI:
 "quando sono libero due ore questa settimana" -> schedule_query
 "metti palestra domani alle 19" -> schedule_mutate
 "sposta il dentista a venerdì" -> schedule_mutate
+"mercoledì finisco alle 15 invece che alle 16:30" -> schedule_mutate
+"il turno di giovedì è cambiato, inizia alle 9" -> schedule_mutate
+"la riunione di domani è stata annullata" -> schedule_mutate
 "ci sono email importanti?" -> inbox_query
 "cosa mi ha scritto Marco" -> inbox_query
 "cosa devo fare" -> task_query
