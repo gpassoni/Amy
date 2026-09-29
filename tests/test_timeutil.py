@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from donna import timeutil
+from amy import timeutil
 
 
 def test_storage_format_is_uniform_so_string_order_is_time_order():

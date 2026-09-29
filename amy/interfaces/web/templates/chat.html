@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% set page = 'chat' %}
+{% block title %}Amy — chat{% endblock %}
+
+{% block body %}
+<h1>Chat</h1>
+<p class="lede">Stessi agenti e stessi strumenti di Telegram: quello che risponde qui risponde anche là.</p>
+
+{% include "_live.html" %}
+
+<div class="panel">
+  <div class="thread">
+    {% for t in turns %}
+      <div class="msg {{ 'user' if t.role == 'user' else 'amy' }}">
+        <div class="who">
+          {% if t.role == 'user' %}tu{% else %}Amy{% if t.agent %} · {{ t.agent }}{% endif %}{% if t.intent %} · {{ t.intent }}{% endif %}{% endif %}
+          · {{ t.created_at | clock }}
+        </div>
+        {{ t.content }}
+      </div>
+    {% else %}
+      <div class="empty">Nessun messaggio. Chiedile qualcosa.</div>
+    {% endfor %}
+  </div>
+
+  <form method="post" action="/chat" class="composer">
+    <input type="text" name="message" placeholder="Scrivi a Amy..." autofocus autocomplete="off">
+    <button class="go" type="submit">Invia</button>
+  </form>
+  <form method="post" action="/chat/reset" style="margin-top:10px">
+    <button class="quiet" type="submit">Dimentica la conversazione</button>
+  </form>
+  <p class="dim" style="margin-top:8px">
+    Una risposta richiede qualche secondo: il modello gira su questa macchina.
+  </p>
+</div>
+{% endblock %}

@@ -7,9 +7,9 @@ token.json
 *.log
 
 # Local world model — mirrors your mailbox and calendar. Never commit it.
-donna.db
-donna.db-wal
-donna.db-shm
+*.db
+*.db-wal
+*.db-shm
 
 # Exported fine-tuning datasets
 datasets/

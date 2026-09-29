@@ -3,7 +3,7 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "donna"
+name = "amy"
 version = "2.0.0"
 description = "Local-first personal assistant: Gmail triage and calendar proposals with on-device LLMs."
 readme = "README.md"
@@ -32,10 +32,10 @@ dependencies = [
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]
-include = ["donna*"]
+include = ["amy*"]
 
 [tool.setuptools.package-data]
-donna = ["store/migrations/*.sql", "interfaces/web/templates/*.html", "interfaces/web/static/*"]
+amy = ["store/migrations/*.sql", "interfaces/web/templates/*.html", "interfaces/web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

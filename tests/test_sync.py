@@ -12,11 +12,11 @@ from unittest.mock import patch
 
 import pytest
 
-from donna.google.gmail import FetchReport, HistoryChanges, Message
-from donna.store import repo
-from donna.store.db import Database
-from donna.sync import gmail_sync
-from donna.timeutil import iso_utc
+from amy.google.gmail import FetchReport, HistoryChanges, Message
+from amy.store import repo
+from amy.store.db import Database
+from amy.sync import gmail_sync
+from amy.timeutil import iso_utc
 
 
 def make_message(
@@ -115,9 +115,9 @@ def test_known_email_ids_on_empty_input(db: Database):
 
 
 # ---------------------------------------------------------------- the cursor bug
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.list_recent_ids")
-@patch("donna.sync.gmail_sync.gmail.current_history_id")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.list_recent_ids")
+@patch("amy.sync.gmail_sync.gmail.current_history_id")
 def test_partial_backfill_does_not_advance_the_cursor(history_id, list_ids, fetch, db: Database):
     history_id.return_value = "999"
     list_ids.return_value = ["m1", "m2", "m3"]
@@ -136,9 +136,9 @@ def test_partial_backfill_does_not_advance_the_cursor(history_id, list_ids, fetc
     assert repo.get_cursor(gmail_sync.BACKFILL_RESOURCE) != gmail_sync.BACKFILL_DONE
 
 
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.list_recent_ids")
-@patch("donna.sync.gmail_sync.gmail.current_history_id")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.list_recent_ids")
+@patch("amy.sync.gmail_sync.gmail.current_history_id")
 def test_complete_backfill_advances_cursor_and_marks_done(
     history_id, list_ids, fetch, db: Database
 ):
@@ -153,9 +153,9 @@ def test_complete_backfill_advances_cursor_and_marks_done(
     assert repo.get_cursor(gmail_sync.BACKFILL_RESOURCE) == gmail_sync.BACKFILL_DONE
 
 
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.list_recent_ids")
-@patch("donna.sync.gmail_sync.gmail.current_history_id")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.list_recent_ids")
+@patch("amy.sync.gmail_sync.gmail.current_history_id")
 def test_backfill_resumes_by_skipping_what_is_already_stored(
     history_id, list_ids, fetch, db: Database
 ):
@@ -172,9 +172,9 @@ def test_backfill_resumes_by_skipping_what_is_already_stored(
     assert result.created == 1
 
 
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.list_recent_ids")
-@patch("donna.sync.gmail_sync.gmail.current_history_id")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.list_recent_ids")
+@patch("amy.sync.gmail_sync.gmail.current_history_id")
 def test_incomplete_backfill_forces_the_full_path_on_the_next_run(
     history_id, list_ids, fetch, db: Database
 ):
@@ -191,8 +191,8 @@ def test_incomplete_backfill_forces_the_full_path_on_the_next_run(
     list_ids.assert_called_once()
 
 
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.replay_history")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.replay_history")
 def test_incremental_path_used_once_backfill_is_done(changed, fetch, db: Database):
     repo.record_sync(gmail_sync.RESOURCE, cursor="500")
     repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
@@ -205,8 +205,8 @@ def test_incremental_path_used_once_backfill_is_done(changed, fetch, db: Databas
     assert repo.get_cursor(gmail_sync.RESOURCE) == "600"
 
 
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.replay_history")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.replay_history")
 def test_incremental_deletes_messages_removed_upstream(changed, fetch, db: Database):
     gmail_sync._store(make_message("m1"))
     repo.record_sync(gmail_sync.RESOURCE, cursor="500")
@@ -220,14 +220,14 @@ def test_incremental_deletes_messages_removed_upstream(changed, fetch, db: Datab
     assert repo.get_email("m1") is None
 
 
-@patch("donna.sync.gmail_sync.gmail.fetch_messages")
-@patch("donna.sync.gmail_sync.gmail.list_recent_ids")
-@patch("donna.sync.gmail_sync.gmail.current_history_id")
-@patch("donna.sync.gmail_sync.gmail.replay_history")
+@patch("amy.sync.gmail_sync.gmail.fetch_messages")
+@patch("amy.sync.gmail_sync.gmail.list_recent_ids")
+@patch("amy.sync.gmail_sync.gmail.current_history_id")
+@patch("amy.sync.gmail_sync.gmail.replay_history")
 def test_expired_history_falls_back_to_a_full_sync(
     changed, history_id, list_ids, fetch, db: Database
 ):
-    from donna.google.gmail import HistoryExpired
+    from amy.google.gmail import HistoryExpired
 
     repo.record_sync(gmail_sync.RESOURCE, cursor="1")
     repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
@@ -244,10 +244,10 @@ def test_expired_history_falls_back_to_a_full_sync(
 
 def test_messages_gmail_no_longer_has_are_skipped_not_failed(db: Database):
     with (
-        patch("donna.sync.gmail_sync.gmail.current_history_id", return_value="9"),
-        patch("donna.sync.gmail_sync.gmail.list_recent_ids", return_value=["m1", "gone"]),
+        patch("amy.sync.gmail_sync.gmail.current_history_id", return_value="9"),
+        patch("amy.sync.gmail_sync.gmail.list_recent_ids", return_value=["m1", "gone"]),
         patch(
-            "donna.sync.gmail_sync.gmail.fetch_messages",
+            "amy.sync.gmail_sync.gmail.fetch_messages",
             return_value=FetchReport(messages=[make_message("m1")], missing=["gone"]),
         ),
     ):
@@ -408,12 +408,12 @@ def test_label_only_changes_are_applied_without_refetching(db: Database):
 
     with (
         patch(
-            "donna.sync.gmail_sync.gmail.replay_history",
+            "amy.sync.gmail_sync.gmail.replay_history",
             return_value=HistoryChanges(
-                relabelled={"m1": ({"Label_donna_1"}, {"UNREAD"})}, cursor="600"
+                relabelled={"m1": ({"Label_amy_1"}, {"UNREAD"})}, cursor="600"
             ),
         ),
-        patch("donna.sync.gmail_sync.gmail.fetch_messages") as fetch,
+        patch("amy.sync.gmail_sync.gmail.fetch_messages") as fetch,
     ):
         result = gmail_sync.sync_gmail()
 
@@ -421,7 +421,7 @@ def test_label_only_changes_are_applied_without_refetching(db: Database):
     assert result.ok
     row = repo.get_email("m1")
     assert row["is_unread"] == 0  # UNREAD removed
-    assert "Label_donna_1" in row["gmail_labels"]  # new label recorded
+    assert "Label_amy_1" in row["gmail_labels"]  # new label recorded
 
 
 def test_a_label_delta_for_an_unmirrored_message_is_ignored(db: Database):
@@ -442,11 +442,11 @@ def test_a_new_message_is_fetched_not_treated_as_a_relabel(db: Database):
     repo.record_sync(gmail_sync.BACKFILL_RESOURCE, cursor=gmail_sync.BACKFILL_DONE)
     with (
         patch(
-            "donna.sync.gmail_sync.gmail.replay_history",
+            "amy.sync.gmail_sync.gmail.replay_history",
             return_value=HistoryChanges(added={"m9"}, cursor="600"),
         ),
         patch(
-            "donna.sync.gmail_sync.gmail.fetch_messages",
+            "amy.sync.gmail_sync.gmail.fetch_messages",
             return_value=FetchReport(messages=[make_message("m9")]),
         ),
     ):

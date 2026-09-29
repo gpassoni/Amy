@@ -1,15 +1,15 @@
-# Donna
+# Amy
 
 A personal assistant that reads my email and keeps my calendar, running entirely on my own machine.
 
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-![Donna's proposals view: commitments found in email, each waiting for approval](.github/cover.png)
+![Amy's proposals view: commitments found in email, each waiting for approval](.github/cover.png)
 
 ## What it is
 
-Donna mirrors Gmail, Google Calendar and Google Tasks into a local SQLite database and works
+Amy mirrors Gmail, Google Calendar and Google Tasks into a local SQLite database and works
 on that copy. A local model (Qwen 3.5 9B, served by Ollama) sorts incoming mail and finds the
 emails that contain a real commitment: an appointment, a hearing, a flight, a payment deadline.
 Each one becomes a proposal that I accept or reject from Telegram or a small web dashboard.
@@ -23,7 +23,7 @@ in English.
 
 An assistant with access to your inbox is useful only if you can trust it, and there are two
 obvious ways to lose that trust. The first is sending your mail to a third party. The second
-is writing wrong things into your calendar. Donna is built around avoiding both.
+is writing wrong things into your calendar. Amy is built around avoiding both.
 
 The first means no cloud APIs: there is no LLM key anywhere in the project, and the only network
 traffic goes to Google (for my own data) and Telegram. The second means that the model never writes anything
@@ -54,7 +54,7 @@ case it found the right event and quoted the right date phrase. But the fixtures
 a fixed date (21 September 2026), while the check that discards past events uses the real clock.
 Run a week later, "tomorrow at 14:30" is already in the past. The harness needs to freeze the
 clock, and the set needs to grow. The corrections I make in the dashboard are already stored as
-labelled examples (`donna/eval/dataset.py`), which is where the next set should come from.
+labelled examples (`amy/eval/dataset.py`), which is where the next set should come from.
 
 One measurement changed the architecture. The original plan used three models: a 0.8B router,
 a 2B worker and the 9B for conversation. With a second model loaded, Ollama quietly moved the
@@ -113,23 +113,23 @@ ollama pull qwen3.5:9b
 ollama pull mxbai-embed-large
 
 cp .env.example .env               # set TELEGRAM_BOT_TOKEN
-python -m donna auth               # one-time Google consent in the browser
-python -m donna doctor             # checks Ollama, the models, Google and the config
+python -m amy auth                 # one-time Google consent in the browser
+python -m amy doctor               # checks Ollama, the models, Google and the config
 python main.py                     # bot + background sync + dashboard on http://127.0.0.1:8765
 ```
 
 Send `/start` to the bot once; that binds it to your chat, and it ignores everyone else.
 
-To try the pipeline without touching your real mailbox, point Donna at a separate database and
+To try the pipeline without touching your real mailbox, point Amy at a separate database and
 load the synthetic emails. That's how the screenshot above was made:
 
 ```bash
-export DB_PATH=donna-demo.db       # PowerShell: $env:DB_PATH = "donna-demo.db"
-python -m donna seed
-python -m donna triage --no-labels
-python -m donna extract
-python -m donna proposals
-python -m donna chat -v            # talk to her in the terminal; -v shows intent, agent and tools
+export DB_PATH=amy-demo.db         # PowerShell: $env:DB_PATH = "amy-demo.db"
+python -m amy seed
+python -m amy triage --no-labels
+python -m amy extract
+python -m amy proposals
+python -m amy chat -v              # talk to her in the terminal; -v shows intent, agent and tools
 ```
 
 `accept` still writes to your real Google Calendar, even on a demo database.
@@ -138,13 +138,13 @@ Tests need neither Ollama nor Google. The eval needs Ollama:
 
 ```bash
 python -m pytest -q
-python -m donna.eval.cli run
+python -m amy.eval.cli run
 ```
 
 ## Project structure
 
 ```
-donna/
+amy/
   agents/        router, the agents, their tools, prefetch and the structured fallback
   pipeline/      triage, commitment extraction, date resolution, accept/reject
   sync/          Gmail, Calendar and Tasks → SQLite, and the scheduler

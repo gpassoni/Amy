@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set page = 'traces' %}
+{% block title %}Amy — trace{% endblock %}
+
+{% block body %}
+<h1>{{ trace.task }}</h1>
+<p class="lede">
+  {{ trace.model }} su {{ trace.device }} ·
+  {{ trace.tokens_in or 0 }} token in, {{ trace.tokens_out or 0 }} out ·
+  {{ trace.latency_ms or 0 }} ms{% if trace.load_ms %} (di cui {{ trace.load_ms }} ms di caricamento){% endif %}
+</p>
+
+{% if trace.parent_id %}
+  <p><a href="/activity/{{ trace.parent_id }}">← l'attività che l'ha generata</a></p>
+{% endif %}
+
+<div class="panel">
+  <h2>Prompt di sistema</h2>
+  <pre>{{ trace.system_prompt or '(nessuno)' }}</pre>
+</div>
+<div class="panel">
+  <h2>Messaggi{% if trace.schema_name %} · schema {{ trace.schema_name }}{% endif %}</h2>
+  <pre>{{ trace.prompt or '(nessuno)' }}</pre>
+</div>
+<div class="panel">
+  <h2>Risposta</h2>
+  <pre>{{ trace.output or '(vuota)' }}</pre>
+  {% if trace.error %}<pre style="color:var(--bad)">{{ trace.error }}</pre>{% endif %}
+</div>
+{% endblock %}

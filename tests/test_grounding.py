@@ -1,6 +1,6 @@
 """Guards against the model asserting things that are not true.
 
-Every test here corresponds to a real answer Donna gave. The pattern across all of them is the
+Every test here corresponds to a real answer Amy gave. The pattern across all of them is the
 same: the model is fluent and confident about details it has no basis for, and the fix is
 never a firmer instruction — it is removing the opportunity to guess.
 """
@@ -12,11 +12,11 @@ from unittest.mock import patch
 
 import pytest
 
-from donna.agents import base, fallback, prefetch
-from donna.context import builder
-from donna.store import repo
-from donna.store.db import Database
-from donna.timeutil import iso_utc, now_local, to_utc
+from amy.agents import base, fallback, prefetch
+from amy.context import builder
+from amy.store import repo
+from amy.store.db import Database
+from amy.timeutil import iso_utc, now_local, to_utc
 
 
 def _event(db: Database, *, days_ahead: int, hour: int, end_hour: int, summary: str) -> None:
@@ -56,7 +56,7 @@ def _event(db: Database, *, days_ahead: int, hour: int, end_hour: int, summary: 
 
 # ---------------------------------------------------------------- the end time
 def test_the_week_list_shows_when_events_end(db: Database):
-    """Asked to schedule something "after work" on a day ending at 16:30, Donna said work
+    """Asked to schedule something "after work" on a day ending at 16:30, Amy said work
     finished at 18:00 — the week list only printed start times, so she could not have known."""
     _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")
     week = builder.build().week
@@ -339,7 +339,7 @@ def test_the_fallback_defaults_a_missing_end_to_one_hour(db: Database):
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("cosa", context="")
     payload = repo.proposal_payload(repo.get_proposal(outcome.proposal_id))
-    from donna.timeutil import parse_iso
+    from amy.timeutil import parse_iso
 
     assert parse_iso(payload["end_ts"]) - parse_iso(payload["start_ts"]) == timedelta(hours=1)
 
@@ -400,7 +400,7 @@ def test_moving_only_the_start_keeps_the_duration(db: Database):
     with patch.object(fallback, "get_llm", return_value=_fake_llm(plan)):
         outcome = fallback.propose_from_request("sposta la riunione alle 14", context="")
 
-    from donna.timeutil import parse_iso
+    from amy.timeutil import parse_iso
 
     payload = repo.proposal_payload(repo.get_proposal(outcome.proposal_id))
     assert parse_iso(payload["end_ts"]) - parse_iso(payload["start_ts"]) == timedelta(
@@ -484,7 +484,7 @@ def test_an_invented_event_id_is_not_turned_into_a_proposal(db: Database):
 
 
 def test_accepting_a_move_updates_google_and_the_mirror(db: Database):
-    from donna.pipeline import resolve
+    from amy.pipeline import resolve
 
     _event(db, days_ahead=2, hour=8, end_hour=16, summary="Lavoro")
     plan = _plan(
@@ -511,7 +511,7 @@ def test_accepting_a_move_updates_google_and_the_mirror(db: Database):
 
 
 def test_accepting_a_delete_removes_it_from_google_and_the_mirror(db: Database):
-    from donna.pipeline import resolve
+    from amy.pipeline import resolve
 
     _event(db, days_ahead=2, hour=9, end_hour=10, summary="Riunione")
     plan = _plan(_action(frase="cancella la riunione", tipo="elimina", id_evento="e2-9"))
@@ -528,10 +528,10 @@ def test_accepting_a_delete_removes_it_from_google_and_the_mirror(db: Database):
 
 def test_the_move_tool_no_longer_writes_straight_to_google(db: Database):
     """sposta_evento used to call Google directly, with no approval — unlike creation."""
-    from donna.agents import tools as toolkit
+    from amy.agents import tools as toolkit
 
     _event(db, days_ahead=2, hour=9, end_hour=10, summary="Riunione")
-    with patch("donna.google.calendar.calendar_service") as service:
+    with patch("amy.google.calendar.calendar_service") as service:
         reply = toolkit.sposta_evento("e2-9", _local(2, 14))
     service.assert_not_called()
     assert reply.startswith("PROPOSTA #")
@@ -542,7 +542,7 @@ def test_the_move_tool_no_longer_writes_straight_to_google(db: Database):
 def test_a_calendar_change_never_depends_on_the_model_calling_a_tool(db: Database):
     """The agent loop must not run for schedule_mutate when a plan exists. Before, one tool call
     out of two was enough to make the second change disappear."""
-    from donna.agents import orchestrator, router
+    from amy.agents import orchestrator, router
 
     plan = _plan(
         _action(frase="lava la moto martedì", titolo="Moto", inizio_iso=_local(2, 17)),
@@ -569,7 +569,7 @@ def test_a_question_answered_with_an_existing_proposal_is_not_called_a_lie(db: D
     """«Ho preparato una proposta per spostarla» is true when the proposal exists from an earlier
     turn. The claim check knew only about tools called this turn, so a correct answer to «cosa
     ho in calendario?» was replaced by «Stavo per dirti che l'avevo fatto, ma non l'ho fatto»."""
-    from donna.agents import orchestrator, router
+    from amy.agents import orchestrator, router
 
     class _Result:
         content = "Mercoledì c'è la corsa (ma ho preparato una proposta per spostarla alle 20)."
@@ -591,7 +591,7 @@ def test_a_question_answered_with_an_existing_proposal_is_not_called_a_lie(db: D
 
 
 def test_a_request_to_act_still_gets_the_claim_check(db: Database):
-    from donna.agents import orchestrator, router
+    from amy.agents import orchestrator, router
 
     class _Result:
         content = "Ho preparato la proposta, è pronta."
@@ -612,7 +612,7 @@ def test_a_request_to_act_still_gets_the_claim_check(db: Database):
 
 
 def test_when_no_plan_comes_out_the_agent_still_answers(db: Database):
-    from donna.agents import orchestrator, router
+    from amy.agents import orchestrator, router
 
     reply = base.AgentReply(text="Giovedì sei libero.", agent="schedule")
     with (
@@ -655,7 +655,7 @@ def test_prefetch_is_absent_when_nothing_applies(db: Database):
 def test_a_reminder_reaches_google_as_an_override(db: Database):
     """useDefault must be false, or Google quietly applies the calendar's own defaults and the
     reminder is not the one that was asked for."""
-    from donna.google import calendar
+    from amy.google import calendar
 
     with patch.object(calendar, "calendar_service") as service:
         service.return_value.events.return_value.insert.return_value.execute.return_value = {
@@ -671,7 +671,7 @@ def test_a_reminder_reaches_google_as_an_override(db: Database):
 
 
 def test_an_event_without_a_reminder_leaves_the_defaults_alone(db: Database):
-    from donna.google import calendar
+    from amy.google import calendar
 
     with patch.object(calendar, "calendar_service") as service:
         service.return_value.events.return_value.insert.return_value.execute.return_value = {

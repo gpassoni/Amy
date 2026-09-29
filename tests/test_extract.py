@@ -2,7 +2,7 @@
 
 What is tested here is the judgement *around* the model call — whether to propose at all —
 because that is where the bugs were. The model's own accuracy is measured by the eval
-harness (`python -m donna.eval.cli run`), which needs a real model and is too slow for here.
+harness (`python -m amy.eval.cli run`), which needs a real model and is too slow for here.
 """
 
 from __future__ import annotations
@@ -12,12 +12,12 @@ from unittest.mock import patch
 
 import pytest
 
-from donna.pipeline import extract
-from donna.pipeline.dates import ResolvedWhen
-from donna.pipeline.schemas import Commitment
-from donna.store import repo
-from donna.store.db import Database
-from donna.timeutil import iso_utc, now_utc
+from amy.pipeline import extract
+from amy.pipeline.dates import ResolvedWhen
+from amy.pipeline.schemas import Commitment
+from amy.store import repo
+from amy.store.db import Database
+from amy.timeutil import iso_utc, now_utc
 
 
 def make_commitment(**kwargs) -> Commitment:
@@ -55,7 +55,7 @@ def fake_structured(commitment: Commitment):
 
 def run_extract(commitment: Commitment, *, received_at: str | None = None):
     received = received_at or iso_utc(now_utc() - timedelta(hours=1))
-    with patch("donna.pipeline.extract.get_llm", return_value=fake_structured(commitment)):
+    with patch("amy.pipeline.extract.get_llm", return_value=fake_structured(commitment)):
         return extract.extract_one(
             sender_name="Studio",
             sender_addr="studio@example.it",
@@ -153,7 +153,7 @@ def test_a_phrase_derived_date_is_taken_at_face_value():
 
 def test_low_confidence_does_not_reach_the_user(db: Database, monkeypatch):
     monkeypatch.setenv("PROPOSAL_CONFIDENCE_FLOOR", "0.9")
-    from donna.config import get_settings
+    from amy.config import get_settings
 
     get_settings.cache_clear()
     result = run_extract(make_commitment(date_phrase="domani alle 15:00", confidence=0.3))

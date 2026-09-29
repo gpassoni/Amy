@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set page = 'traces' %}
+{% block title %}Amy — trace{% endblock %}
+
+{% block body %}
+<h1>Chiamate al modello</h1>
+<p class="lede">Ogni richiesta al modello locale, con prompt e risposta. È qui che si capisce perché ha detto una cosa.</p>
+
+<div class="panel">
+  <h2>Per task</h2>
+  <table>
+    <thead><tr><th>task</th><th class="num">chiamate</th><th class="num">medio</th><th class="num">token in</th><th class="num">token out</th></tr></thead>
+    <tbody>
+    {% for r in per_task %}
+      <tr>
+        <td><a href="/traces?task={{ r.task }}">{{ r.task }}</a></td>
+        <td class="num">{{ r.n }}</td>
+        <td class="num">{{ (r.avg_ms | round | int) if r.avg_ms else 0 }} ms</td>
+        <td class="num">{{ r.tin or 0 }}</td>
+        <td class="num">{{ r.tout or 0 }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>{{ 'Task: ' ~ task if task else 'Ultime chiamate' }}</h2>
+  <table>
+    <thead><tr><th>quando</th><th>task</th><th>modello</th><th class="num">in/out</th><th class="num">ms</th><th></th></tr></thead>
+    <tbody>
+    {% for t in traces %}
+      <tr>
+        <td class="mono">{{ t.created_at | clock }}</td>
+        <td>{{ t.task }} {% if not t.ok %}<span class="chip fail">ko</span>{% endif %}</td>
+        <td class="mono">{{ t.model }} <span class="chip {{ t.device }}">{{ t.device }}</span></td>
+        <td class="num">{{ t.tokens_in or 0 }}/{{ t.tokens_out or 0 }}</td>
+        <td class="num">{{ t.latency_ms or 0 }}</td>
+        <td><a href="/traces/{{ t.id }}">apri</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">Nessuna trace.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
